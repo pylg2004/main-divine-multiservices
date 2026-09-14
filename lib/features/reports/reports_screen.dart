@@ -64,9 +64,19 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   @override
   Widget build(BuildContext context) {
     ref.watch(dataRevisionProvider);
+    final session = ref.watch(sessionProvider)!;
+    // Le personnel sans vue globale (vendeur, caissier, beautician,
+    // imprimeur) n'a que reportsViewOwn : son "Mon rapport" est
+    // automatiquement borné à ses propres ventes, sans filtre de poste
+    // (il n'en a qu'un seul de toute façon).
+    final ownReportOnly = !session.can(Permission.reportsViewPos);
+
     final (start, end) = _range();
-    final allSales = ref.watch(saleRepositoryProvider).inRange(start, end).where((s) => s.status == SaleStatus.complete);
-    final sales = _workstationFilter == null
+    var allSales = ref.watch(saleRepositoryProvider).inRange(start, end).where((s) => s.status == SaleStatus.complete);
+    if (ownReportOnly) {
+      allSales = allSales.where((s) => s.sellerId == session.user.id);
+    }
+    final sales = _workstationFilter == null || ownReportOnly
         ? allSales.toList()
         : allSales.where((s) => s.workstation == _workstationFilter).toList();
 
@@ -112,7 +122,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     }
 
     return AppShell(
-      title: 'Rapports',
+      title: ownReportOnly ? 'Mon rapport' : 'Rapports',
       actions: [
         PermissionGate(
           permission: Permission.reportsPrint,
@@ -121,21 +131,31 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             onPressed: () async {
               final company = ref.read(settingsRepositoryProvider).company;
               try {
-                final bytes = await ref.read(thermalPrinterServiceProvider).buildDailyReport(
-                      company: company,
-                      periodLabel: _periodLabel(),
-                      posSalesCount:
-                          sales.where((s) => s.items.any((i) => i.type == SaleItemType.product)).length,
-                      posRevenue: posRevenue,
-                      beautySalesCount:
-                          sales.where((s) => s.items.any((i) => i.type == SaleItemType.beautyService)).length,
-                      beautyRevenue: beautyRevenue,
-                      printSalesCount:
-                          sales.where((s) => s.items.any((i) => i.type == SaleItemType.printService)).length,
-                      printRevenue: printRevenue,
-                      paymentsByMethod: paymentTotals,
-                      editedBy: ref.read(sessionProvider)!.user.name,
-                    );
+                final bytes = ownReportOnly
+                    ? await ref.read(thermalPrinterServiceProvider).buildPersonalReport(
+                          company: company,
+                          periodLabel: _periodLabel(),
+                          sellerName: session.user.name,
+                          salesCount: sales.length,
+                          totalRevenue: totalRevenue,
+                          topItems: topItems.take(5).map((e) => (title: e.key, qty: e.value)).toList(),
+                          paymentsByMethod: paymentTotals,
+                        )
+                    : await ref.read(thermalPrinterServiceProvider).buildDailyReport(
+                          company: company,
+                          periodLabel: _periodLabel(),
+                          posSalesCount:
+                              sales.where((s) => s.items.any((i) => i.type == SaleItemType.product)).length,
+                          posRevenue: posRevenue,
+                          beautySalesCount:
+                              sales.where((s) => s.items.any((i) => i.type == SaleItemType.beautyService)).length,
+                          beautyRevenue: beautyRevenue,
+                          printSalesCount:
+                              sales.where((s) => s.items.any((i) => i.type == SaleItemType.printService)).length,
+                          printRevenue: printRevenue,
+                          paymentsByMethod: paymentTotals,
+                          editedBy: session.user.name,
+                        );
                 await ref.read(thermalPrinterServiceProvider).printBytes(bytes);
                 ToastService.success('Rapport imprimé');
               } catch (e) {
@@ -171,30 +191,32 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                       },
                     ),
                   ),
-                const SizedBox(width: 16),
-                ChoiceChip(
-                  label: const Text('Tous les postes'),
-                  selected: _workstationFilter == null,
-                  onSelected: (_) => setState(() => _workstationFilter = null),
-                ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('POS'),
-                  selected: _workstationFilter == Workstation.pos,
-                  onSelected: (_) => setState(() => _workstationFilter = Workstation.pos),
-                ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('Beauté'),
-                  selected: _workstationFilter == Workstation.beauty,
-                  onSelected: (_) => setState(() => _workstationFilter = Workstation.beauty),
-                ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('Impression'),
-                  selected: _workstationFilter == Workstation.impression,
-                  onSelected: (_) => setState(() => _workstationFilter = Workstation.impression),
-                ),
+                if (!ownReportOnly) ...[
+                  const SizedBox(width: 16),
+                  ChoiceChip(
+                    label: const Text('Tous les postes'),
+                    selected: _workstationFilter == null,
+                    onSelected: (_) => setState(() => _workstationFilter = null),
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: const Text('POS'),
+                    selected: _workstationFilter == Workstation.pos,
+                    onSelected: (_) => setState(() => _workstationFilter = Workstation.pos),
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: const Text('Beauté'),
+                    selected: _workstationFilter == Workstation.beauty,
+                    onSelected: (_) => setState(() => _workstationFilter = Workstation.beauty),
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: const Text('Impression'),
+                    selected: _workstationFilter == Workstation.impression,
+                    onSelected: (_) => setState(() => _workstationFilter = Workstation.impression),
+                  ),
+                ],
               ],
             ),
           ),

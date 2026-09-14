@@ -215,6 +215,50 @@ class ThermalPrinterService {
     return bytes;
   }
 
+  // ─────────────────────── Rapport personnel (non-admin) ───────────────────────
+  /// Version allégée du rapport de caisse pour le personnel qui n'a que
+  /// [Permission.reportsViewOwn] (vendeur, caissier, beautician, imprimeur) :
+  /// juste ses propres ventes, sans détail par poste ni consolidé.
+  Future<List<int>> buildPersonalReport({
+    required CompanySettingsModel company,
+    required String periodLabel,
+    required String sellerName,
+    required int salesCount,
+    required double totalRevenue,
+    required List<({String title, double qty})> topItems,
+    required Map<PaymentMethod, double> paymentsByMethod,
+  }) async {
+    final g = await _generator();
+    List<int> bytes = [];
+    bytes += g.text(company.name, styles: const PosStyles(align: PosAlign.center, bold: true));
+    bytes += g.text('MON RAPPORT', styles: const PosStyles(align: PosAlign.center));
+    bytes += g.text(periodLabel, styles: const PosStyles(align: PosAlign.center));
+    bytes += g.hr();
+    bytes += g.text('Employé: $sellerName');
+    bytes += g.text('Nb ventes: $salesCount');
+    bytes += g.text('CA TOTAL: ${_money(totalRevenue, company)}', styles: const PosStyles(bold: true));
+    if (topItems.isNotEmpty) {
+      bytes += g.hr();
+      bytes += g.text('TOP ARTICLES/SERVICES', styles: const PosStyles(bold: true));
+      for (final item in topItems) {
+        bytes += g.row([
+          PosColumn(text: item.title, width: 8),
+          PosColumn(text: '${item.qty.toInt()}', width: 4, styles: const PosStyles(align: PosAlign.right)),
+        ]);
+      }
+    }
+    bytes += g.hr();
+    bytes += g.text('Paiements:');
+    bytes += g.text(' - Espèces: ${_money(paymentsByMethod[PaymentMethod.especes] ?? 0, company)}');
+    bytes += g.text(' - Carte: ${_money(paymentsByMethod[PaymentMethod.carte] ?? 0, company)}');
+    bytes += g.text(' - Mobile: ${_money(paymentsByMethod[PaymentMethod.mobile] ?? 0, company)}');
+    bytes += g.hr();
+    bytes += g.text('Édité le ${DateFormatter.dateTime(DateTime.now())}');
+    bytes += g.feed(2);
+    bytes += g.cut();
+    return bytes;
+  }
+
   Future<List<int>> buildTestTicket(CompanySettingsModel company) async {
     final g = await _generator();
     List<int> bytes = [];

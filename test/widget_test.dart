@@ -81,5 +81,20 @@ void main() {
       expect(PermissionService.has(UserRole.imprimeur, Permission.printServicesCreateEdit), false);
       expect(PermissionService.has(UserRole.vendeur, Permission.printServicesView), false);
     });
+
+    test('le personnel sans vue globale a son propre rapport imprimable', () {
+      for (final role in [UserRole.vendeur, UserRole.caissier, UserRole.beautician, UserRole.imprimeur]) {
+        expect(PermissionService.has(role, Permission.reportsViewOwn), true, reason: role.name);
+        expect(PermissionService.has(role, Permission.reportsPrint), true, reason: role.name);
+        expect(PermissionService.has(role, Permission.reportsViewPos), false, reason: role.name);
+      }
+    });
+
+    test('seul le Super Admin peut changer un mot de passe (le sien ou un autre)', () {
+      for (final role in UserRole.values) {
+        final expected = role == UserRole.superAdmin;
+        expect(PermissionService.has(role, Permission.usersManage), expected, reason: role.name);
+      }
+    });
   });
 }

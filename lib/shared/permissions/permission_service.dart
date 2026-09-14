@@ -38,6 +38,7 @@ class PermissionService {
     Permission.reportsViewPos,
     Permission.reportsViewBeauty,
     Permission.reportsViewImpression,
+    Permission.reportsViewOwn,
     Permission.reportsViewConsolidated,
     Permission.reportsPrint,
     Permission.usersManage,
@@ -116,6 +117,8 @@ class PermissionService {
       Permission.clientsView,
       Permission.clientsCreateEdit,
       Permission.clientsPrintCard,
+      Permission.reportsViewOwn,
+      Permission.reportsPrint,
     },
     UserRole.caissier: {
       Permission.dashboardViewPos,
@@ -126,6 +129,8 @@ class PermissionService {
       Permission.clientsView,
       Permission.clientsCreateEdit,
       Permission.clientsPrintCard,
+      Permission.reportsViewOwn,
+      Permission.reportsPrint,
     },
     UserRole.beautician: {
       Permission.dashboardViewBeauty,
@@ -136,6 +141,8 @@ class PermissionService {
       Permission.clientsView,
       Permission.clientsCreateEdit,
       Permission.clientsPrintCard,
+      Permission.reportsViewOwn,
+      Permission.reportsPrint,
     },
     UserRole.imprimeur: {
       Permission.dashboardViewImpression,
@@ -146,6 +153,8 @@ class PermissionService {
       Permission.clientsView,
       Permission.clientsCreateEdit,
       Permission.clientsPrintCard,
+      Permission.reportsViewOwn,
+      Permission.reportsPrint,
     },
   };
 

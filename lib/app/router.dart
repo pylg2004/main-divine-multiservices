@@ -45,21 +45,23 @@ const Map<String, List<Workstation>> _routeWorkstations = {
   '/catalog/products': [Workstation.pos, Workstation.admin],
   '/catalog/beauty-services': [Workstation.beauty, Workstation.admin],
   '/catalog/print-services': [Workstation.impression, Workstation.admin],
-  '/reports': [Workstation.admin],
   '/users': [Workstation.admin],
   '/settings': [Workstation.admin],
   '/printer-settings': [Workstation.admin],
   '/audit': [Workstation.admin],
 };
 
-/// Permission requise par préfixe de route, au-delà du filtre par poste
-/// ci-dessus (garde "action" — spec §6/§12).
-const Map<String, Permission> _routePermissions = {
-  '/reports': Permission.reportsViewPos,
-  '/users': Permission.usersManage,
-  '/settings': Permission.settingsManage,
-  '/printer-settings': Permission.printerSettingsManage,
-  '/audit': Permission.auditView,
+/// Permission(s) requise(s) par préfixe de route, au-delà du filtre par poste
+/// ci-dessus (garde "action" — spec §6/§12). N'importe laquelle des
+/// permissions listées suffit — /reports sert aussi bien le rapport complet
+/// de l'admin (reportsViewPos) que le rapport personnel du personnel
+/// (reportsViewOwn).
+const Map<String, List<Permission>> _routePermissions = {
+  '/reports': [Permission.reportsViewPos, Permission.reportsViewOwn],
+  '/users': [Permission.usersManage],
+  '/settings': [Permission.settingsManage],
+  '/printer-settings': [Permission.printerSettingsManage],
+  '/audit': [Permission.auditView],
 };
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -92,9 +94,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         return session.workstation.homeRoute;
       }
 
-      final requiredPermission =
+      final requiredPermissions =
           _routePermissions.entries.firstWhereOrNull((e) => loc.startsWith(e.key))?.value;
-      if (requiredPermission != null && !PermissionService.has(session.user.role, requiredPermission)) {
+      if (requiredPermissions != null &&
+          !requiredPermissions.any((p) => PermissionService.has(session.user.role, p))) {
         return session.workstation.homeRoute;
       }
 

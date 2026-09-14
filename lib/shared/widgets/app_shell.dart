@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_sizes.dart';
 import '../../data/models/enums.dart';
+import '../../features/auth/session.dart';
 import '../../features/auth/session_notifier.dart';
 import '../permissions/permission.dart';
 import '../permissions/permission_service.dart';
@@ -32,6 +33,7 @@ const _navByWorkstation = <Workstation, List<_NavItem>>{
     _NavItem('/catalog/products', 'Produits', Icons.inventory_2_outlined),
     _NavItem('/clients', 'Clients', Icons.people_outline),
     _NavItem('/sales', 'Ventes', Icons.receipt_long_outlined),
+    _NavItem('/reports', 'Mon rapport', Icons.bar_chart_outlined, Permission.reportsViewOwn),
     _NavItem('/profile', 'Profil', Icons.person_outline),
   ],
   Workstation.beauty: [
@@ -40,6 +42,7 @@ const _navByWorkstation = <Workstation, List<_NavItem>>{
     _NavItem('/catalog/beauty-services', 'Services', Icons.spa_outlined),
     _NavItem('/clients', 'Clients', Icons.people_outline),
     _NavItem('/sales', 'Ventes', Icons.receipt_long_outlined),
+    _NavItem('/reports', 'Mon rapport', Icons.bar_chart_outlined, Permission.reportsViewOwn),
     _NavItem('/profile', 'Profil', Icons.person_outline),
   ],
   Workstation.impression: [
@@ -48,6 +51,7 @@ const _navByWorkstation = <Workstation, List<_NavItem>>{
     _NavItem('/catalog/print-services', 'Services impression', Icons.local_printshop_outlined),
     _NavItem('/clients', 'Clients', Icons.people_outline),
     _NavItem('/sales', 'Ventes', Icons.receipt_long_outlined),
+    _NavItem('/reports', 'Mon rapport', Icons.bar_chart_outlined, Permission.reportsViewOwn),
     _NavItem('/profile', 'Profil', Icons.person_outline),
   ],
   Workstation.admin: [
@@ -67,9 +71,11 @@ const _navByWorkstation = <Workstation, List<_NavItem>>{
   ],
 };
 
-/// Coquille commune à tous les écrans authentifiés : barre latérale/inférieure
-/// adaptée au poste (spec §5 — "la sidebar n'affiche QUE les menus autorisés
-/// pour ce poste"), en-tête colorée par poste, déconnexion.
+/// Coquille commune à tous les écrans authentifiés — mobile-first : un menu
+/// tiroir (Drawer) sert de navigation principale sur petit écran (pas de
+/// limite de nombre d'entrées, contrairement à une bottom bar) ; à partir de
+/// [AppSizes.tabletBreakpoint] un NavigationRail permanent le remplace. La
+/// sidebar/le tiroir n'affiche QUE les menus autorisés pour ce poste (spec §5).
 class AppShell extends ConsumerWidget {
   final String title;
   final Widget child;
@@ -92,10 +98,74 @@ class AppShell extends ConsumerWidget {
 
     final wide = MediaQuery.sizeOf(context).width >= AppSizes.tabletBreakpoint;
 
-    final body = Row(
-      children: [
-        if (wide)
-          NavigationRail(
+    final scaffold = Scaffold(
+      appBar: AppBar(
+        title: Text(title),
+        backgroundColor: workstation.color,
+        foregroundColor: Colors.white,
+        actions: [
+          ...?actions,
+          Padding(
+            padding: const EdgeInsets.only(right: AppSizes.sm),
+            child: Center(
+              child: Chip(
+                label: Text(session.user.name, style: const TextStyle(fontSize: 12)),
+                avatar: const Icon(Icons.person, size: 16),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Déconnexion',
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              final ok = await showConfirmDialog(
+                context,
+                title: 'Déconnexion',
+                message: 'Voulez-vous vraiment vous déconnecter ?',
+              );
+              if (ok) await ref.read(sessionProvider.notifier).logout();
+            },
+          ),
+        ],
+      ),
+      drawer: wide
+          ? null
+          : _AppDrawer(
+              session: session,
+              workstation: workstation,
+              items: items,
+              selectedIndex: selectedIndex,
+            ),
+      body: wide
+          ? Row(
+              children: [
+                _WideNavRail(workstation: workstation, items: items, selectedIndex: selectedIndex),
+                const VerticalDivider(width: 1),
+                Expanded(child: SafeArea(child: child)),
+              ],
+            )
+          : SafeArea(child: child),
+    );
+
+    return scaffold;
+  }
+}
+
+class _WideNavRail extends StatelessWidget {
+  final Workstation workstation;
+  final List<_NavItem> items;
+  final int selectedIndex;
+
+  const _WideNavRail({required this.workstation, required this.items, required this.selectedIndex});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: MediaQuery.sizeOf(context).height),
+        child: IntrinsicHeight(
+          child: NavigationRail(
             selectedIndex: selectedIndex < 0 ? 0 : selectedIndex,
             onDestinationSelected: (i) => context.go(items[i].route),
             labelType: NavigationRailLabelType.all,
@@ -110,59 +180,64 @@ class AppShell extends ConsumerWidget {
                     ))
                 .toList(),
           ),
-        if (wide) const VerticalDivider(width: 1),
-        Expanded(
-          child: Scaffold(
-            appBar: AppBar(
-              title: Text(title),
-              backgroundColor: workstation.color,
-              foregroundColor: Colors.white,
-              actions: [
-                ...?actions,
-                Padding(
-                  padding: const EdgeInsets.only(right: AppSizes.sm),
-                  child: Center(
-                    child: Chip(
-                      label: Text(session.user.name, style: const TextStyle(fontSize: 12)),
-                      avatar: const Icon(Icons.person, size: 16),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AppDrawer extends ConsumerWidget {
+  final Session session;
+  final Workstation workstation;
+  final List<_NavItem> items;
+  final int selectedIndex;
+
+  const _AppDrawer({
+    required this.session,
+    required this.workstation,
+    required this.items,
+    required this.selectedIndex,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          DrawerHeader(
+            decoration: BoxDecoration(color: workstation.color),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Icon(workstation.icon, color: Colors.white, size: 36),
+                const SizedBox(height: AppSizes.sm),
+                Text(
+                  session.user.name,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                 ),
-                IconButton(
-                  tooltip: 'Déconnexion',
-                  icon: const Icon(Icons.logout),
-                  onPressed: () async {
-                    final ok = await showConfirmDialog(
-                      context,
-                      title: 'Déconnexion',
-                      message: 'Voulez-vous vraiment vous déconnecter ?',
-                    );
-                    if (ok) await ref.read(sessionProvider.notifier).logout();
-                  },
+                Text(
+                  workstation.label,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
               ],
             ),
-            body: SafeArea(child: child),
-            bottomNavigationBar: wide ? null : _buildBottomNav(context, items, location),
           ),
-        ),
-      ],
-    );
-
-    return body;
-  }
-
-  Widget _buildBottomNav(BuildContext context, List<_NavItem> items, String location) {
-    final bottomItems = items.take(5).toList();
-    var bottomIndex = bottomItems.indexWhere((i) => _matchesRoute(location, i.route));
-    if (bottomIndex < 0) bottomIndex = 0;
-    return NavigationBar(
-      selectedIndex: bottomIndex,
-      onDestinationSelected: (i) => context.go(bottomItems[i].route),
-      destinations: bottomItems
-          .map((i) => NavigationDestination(icon: Icon(i.icon), label: i.label))
-          .toList(),
+          for (var i = 0; i < items.length; i++)
+            ListTile(
+              leading: Icon(items[i].icon),
+              title: Text(items[i].label),
+              selected: i == selectedIndex,
+              selectedTileColor: workstation.color.withValues(alpha: 0.1),
+              selectedColor: workstation.color,
+              onTap: () {
+                Navigator.of(context).pop();
+                context.go(items[i].route);
+              },
+            ),
+        ],
+      ),
     );
   }
 }

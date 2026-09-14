@@ -5,6 +5,7 @@ import '../../core/constants/app_sizes.dart';
 import '../../core/providers.dart';
 import '../../core/services/toast_service.dart';
 import '../../core/utils/validators.dart';
+import '../../shared/permissions/permission.dart';
 import '../../shared/permissions/workstation.dart';
 import '../../shared/widgets/app_shell.dart';
 import '../auth/session_notifier.dart';
@@ -113,25 +114,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         keyboardType: TextInputType.phone,
                         validator: Validators.phone,
                       ),
-                      const SizedBox(height: AppSizes.md),
-                      const Divider(),
-                      const SizedBox(height: AppSizes.sm),
-                      Text('Changer le mot de passe', style: Theme.of(context).textTheme.titleSmall),
-                      const SizedBox(height: AppSizes.sm),
-                      TextFormField(
-                        controller: _passwordCtrl,
-                        decoration: const InputDecoration(labelText: 'Nouveau mot de passe (optionnel)'),
-                        obscureText: true,
-                        validator: (v) => v == null || v.isEmpty ? null : Validators.password(v),
-                      ),
-                      const SizedBox(height: AppSizes.sm),
-                      TextFormField(
-                        controller: _confirmPasswordCtrl,
-                        decoration: const InputDecoration(labelText: 'Confirmer le mot de passe'),
-                        obscureText: true,
-                        validator: (v) =>
-                            _passwordCtrl.text.isEmpty ? null : Validators.confirmPassword(v, _passwordCtrl.text),
-                      ),
+                      // Seul le Super Admin peut changer un mot de passe (le sien ou
+                      // celui d'un autre, via Utilisateurs) — un employé qui veut
+                      // changer le sien doit le demander au Super Admin. Ce n'est
+                      // pas juste une restriction d'IHM : ces champs sont absents
+                      // du formulaire pour tout le monde d'autre, donc _save() ne
+                      // peut jamais recevoir de newPassword venant d'eux.
+                      if (session.can(Permission.usersManage)) ...[
+                        const SizedBox(height: AppSizes.md),
+                        const Divider(),
+                        const SizedBox(height: AppSizes.sm),
+                        Text('Changer le mot de passe', style: Theme.of(context).textTheme.titleSmall),
+                        const SizedBox(height: AppSizes.sm),
+                        TextFormField(
+                          controller: _passwordCtrl,
+                          decoration: const InputDecoration(labelText: 'Nouveau mot de passe (optionnel)'),
+                          obscureText: true,
+                          validator: (v) => v == null || v.isEmpty ? null : Validators.password(v),
+                        ),
+                        const SizedBox(height: AppSizes.sm),
+                        TextFormField(
+                          controller: _confirmPasswordCtrl,
+                          decoration: const InputDecoration(labelText: 'Confirmer le mot de passe'),
+                          obscureText: true,
+                          validator: (v) =>
+                              _passwordCtrl.text.isEmpty ? null : Validators.confirmPassword(v, _passwordCtrl.text),
+                        ),
+                      ],
                       const SizedBox(height: AppSizes.md),
                       FilledButton(onPressed: _save, child: const Text('Enregistrer')),
                     ],

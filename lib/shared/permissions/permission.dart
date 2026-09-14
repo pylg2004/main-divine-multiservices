@@ -29,6 +29,7 @@ enum Permission {
   reportsViewPos,
   reportsViewBeauty,
   reportsViewImpression,
+  reportsViewOwn,
   reportsViewConsolidated,
   reportsPrint,
   usersManage,
