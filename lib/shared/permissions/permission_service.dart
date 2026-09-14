@@ -1,0 +1,132 @@
+import '../../data/models/enums.dart';
+import 'permission.dart';
+
+/// Source unique de vérité pour la matrice des permissions (spec §6).
+/// Toute vérification d'accès — rendu de widget, garde de route, action —
+/// doit passer par [PermissionService.has] plutôt que par un test de rôle
+/// direct, pour rester cohérente partout dans l'app.
+class PermissionService {
+  PermissionService._();
+
+  static const Set<Permission> _allExceptOwnSales = {
+    Permission.dashboardViewPos,
+    Permission.dashboardViewBeauty,
+    Permission.dashboardViewAdmin,
+    Permission.productsView,
+    Permission.productsCreateEdit,
+    Permission.productsDelete,
+    Permission.beautyServicesView,
+    Permission.beautyServicesCreateEdit,
+    Permission.beautyServicesDelete,
+    Permission.salesViewAll,
+    Permission.salesCreateProduct,
+    Permission.salesCreateService,
+    Permission.salesEdit,
+    Permission.salesCancel,
+    Permission.salesDelete,
+    Permission.salesPrint,
+    Permission.clientsView,
+    Permission.clientsCreateEdit,
+    Permission.clientsDelete,
+    Permission.clientsPrintCard,
+    Permission.discountApply,
+    Permission.reportsViewPos,
+    Permission.reportsViewBeauty,
+    Permission.reportsViewConsolidated,
+    Permission.reportsPrint,
+    Permission.usersManage,
+    Permission.settingsManage,
+    Permission.printerSettingsManage,
+    Permission.auditView,
+  };
+
+  static final Map<UserRole, Set<Permission>> _matrix = {
+    UserRole.superAdmin: _allExceptOwnSales,
+    UserRole.admin: {
+      Permission.dashboardViewPos,
+      Permission.dashboardViewBeauty,
+      Permission.dashboardViewAdmin,
+      Permission.productsView,
+      Permission.productsCreateEdit,
+      Permission.productsDelete,
+      Permission.beautyServicesView,
+      Permission.beautyServicesCreateEdit,
+      Permission.beautyServicesDelete,
+      Permission.salesViewAll,
+      Permission.salesCreateProduct,
+      Permission.salesCreateService,
+      Permission.salesEdit,
+      Permission.salesCancel,
+      Permission.salesPrint,
+      Permission.clientsView,
+      Permission.clientsCreateEdit,
+      Permission.clientsDelete,
+      Permission.clientsPrintCard,
+      Permission.discountApply,
+      Permission.reportsViewPos,
+      Permission.reportsViewBeauty,
+      Permission.reportsViewConsolidated,
+      Permission.reportsPrint,
+      Permission.printerSettingsManage,
+      Permission.auditView,
+    },
+    UserRole.manager: {
+      Permission.dashboardViewPos,
+      Permission.dashboardViewBeauty,
+      Permission.dashboardViewAdmin,
+      Permission.productsView,
+      Permission.beautyServicesView,
+      Permission.beautyServicesCreateEdit,
+      Permission.salesViewAll,
+      Permission.salesCreateProduct,
+      Permission.salesCreateService,
+      Permission.salesCancel,
+      Permission.salesPrint,
+      Permission.clientsView,
+      Permission.clientsCreateEdit,
+      Permission.clientsPrintCard,
+      Permission.discountApply,
+      Permission.reportsViewPos,
+      Permission.reportsViewBeauty,
+      Permission.reportsPrint,
+    },
+    UserRole.vendeur: {
+      Permission.dashboardViewPos,
+      Permission.productsView,
+      Permission.salesViewOwn,
+      Permission.salesCreateProduct,
+      Permission.salesPrint,
+      Permission.clientsView,
+      Permission.clientsCreateEdit,
+      Permission.clientsPrintCard,
+    },
+    UserRole.caissier: {
+      Permission.dashboardViewPos,
+      Permission.productsView,
+      Permission.salesViewAll,
+      Permission.salesCreateProduct,
+      Permission.salesPrint,
+      Permission.clientsView,
+      Permission.clientsCreateEdit,
+      Permission.clientsPrintCard,
+    },
+    UserRole.beautician: {
+      Permission.dashboardViewBeauty,
+      Permission.beautyServicesView,
+      Permission.salesViewOwn,
+      Permission.salesCreateService,
+      Permission.salesPrint,
+      Permission.clientsView,
+      Permission.clientsCreateEdit,
+      Permission.clientsPrintCard,
+    },
+  };
+
+  static bool has(UserRole role, Permission permission) {
+    return _matrix[role]?.contains(permission) ?? false;
+  }
+
+  static Set<Permission> permissionsFor(UserRole role) {
+    return _matrix[role] ?? const {};
+  }
+}

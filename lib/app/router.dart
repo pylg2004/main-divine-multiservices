@@ -1,0 +1,165 @@
+import 'package:collection/collection.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../core/providers.dart';
+import '../data/models/enums.dart';
+import '../features/auth/login_screen.dart';
+import '../features/auth/session_notifier.dart';
+import '../features/cashier/sale_screen/sale_screen.dart';
+import '../features/catalog/beauty_services/beauty_service_form_screen.dart';
+import '../features/catalog/beauty_services/beauty_services_list_screen.dart';
+import '../features/catalog/products/product_form_screen.dart';
+import '../features/catalog/products/products_list_screen.dart';
+import '../features/clients/client_detail_screen.dart';
+import '../features/clients/client_form_screen.dart';
+import '../features/clients/clients_list_screen.dart';
+import '../features/dashboard/admin/admin_dashboard_screen.dart';
+import '../features/dashboard/beauty/beauty_dashboard_screen.dart';
+import '../features/dashboard/pos/pos_dashboard_screen.dart';
+import '../features/printer_settings/printer_settings_screen.dart';
+import '../features/profile/profile_screen.dart';
+import '../features/reports/reports_screen.dart';
+import '../features/sales/sale_detail_screen.dart';
+import '../features/sales/sales_list_screen.dart';
+import '../features/settings/audit_log_screen.dart';
+import '../features/settings/settings_screen.dart';
+import '../features/setup/setup_wizard_screen.dart';
+import '../features/users/user_form_screen.dart';
+import '../features/users/users_list_screen.dart';
+import '../shared/permissions/permission.dart';
+import '../shared/permissions/permission_service.dart';
+import '../shared/permissions/workstation.dart';
+
+/// Postes autorisés par préfixe de route. Toute route absente de cette map
+/// est accessible à n'importe quel utilisateur connecté (ex: /clients,
+/// /sales, /sale, /profile — communs aux 3 postes par design du spec).
+const Map<String, List<Workstation>> _routeWorkstations = {
+  '/dashboard/pos': [Workstation.pos],
+  '/dashboard/beauty': [Workstation.beauty],
+  '/dashboard/admin': [Workstation.admin],
+  '/catalog/products': [Workstation.pos, Workstation.admin],
+  '/catalog/beauty-services': [Workstation.beauty, Workstation.admin],
+  '/reports': [Workstation.admin],
+  '/users': [Workstation.admin],
+  '/settings': [Workstation.admin],
+  '/printer-settings': [Workstation.admin],
+  '/audit': [Workstation.admin],
+};
+
+/// Permission requise par préfixe de route, au-delà du filtre par poste
+/// ci-dessus (garde "action" — spec §6/§12).
+const Map<String, Permission> _routePermissions = {
+  '/reports': Permission.reportsViewPos,
+  '/users': Permission.usersManage,
+  '/settings': Permission.settingsManage,
+  '/printer-settings': Permission.printerSettingsManage,
+  '/audit': Permission.auditView,
+};
+
+final routerProvider = Provider<GoRouter>((ref) {
+  // On ne surveille que l'identité de la session et le flag de setup : un
+  // changement ici (login/logout/fin du wizard) reconstruit le router, ce
+  // qui est le comportement voulu pour ces transitions peu fréquentes.
+  final session = ref.watch(sessionProvider);
+  final setupComplete = ref.watch(setupCompleteProvider);
+
+  return GoRouter(
+    initialLocation: '/login',
+    redirect: (context, state) {
+      final loc = state.matchedLocation;
+
+      if (!setupComplete) {
+        return loc == '/setup' ? null : '/setup';
+      }
+      if (loc == '/setup') return session == null ? '/login' : session.workstation.homeRoute;
+
+      if (session == null) {
+        return loc == '/login' ? null : '/login';
+      }
+      if (loc == '/login' || loc == '/dashboard') {
+        return session.workstation.homeRoute;
+      }
+
+      final allowedWorkstations =
+          _routeWorkstations.entries.firstWhereOrNull((e) => loc.startsWith(e.key))?.value;
+      if (allowedWorkstations != null && !allowedWorkstations.contains(session.workstation)) {
+        return session.workstation.homeRoute;
+      }
+
+      final requiredPermission =
+          _routePermissions.entries.firstWhereOrNull((e) => loc.startsWith(e.key))?.value;
+      if (requiredPermission != null && !PermissionService.has(session.user.role, requiredPermission)) {
+        return session.workstation.homeRoute;
+      }
+
+      return null;
+    },
+    routes: [
+      GoRoute(path: '/setup', builder: (context, state) => const SetupWizardScreen()),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(path: '/dashboard', redirect: (context, state) => '/dashboard/pos'),
+      GoRoute(path: '/dashboard/pos', builder: (context, state) => const PosDashboardScreen()),
+      GoRoute(path: '/dashboard/beauty', builder: (context, state) => const BeautyDashboardScreen()),
+      GoRoute(path: '/dashboard/admin', builder: (context, state) => const AdminDashboardScreen()),
+      GoRoute(path: '/sale', builder: (context, state) => const SaleScreen()),
+      GoRoute(
+        path: '/catalog/products',
+        builder: (context, state) => const ProductsListScreen(),
+        routes: [
+          GoRoute(path: 'new', builder: (context, state) => const ProductFormScreen()),
+          GoRoute(path: ':id', builder: (context, state) => ProductFormScreen(productId: state.pathParameters['id'])),
+        ],
+      ),
+      GoRoute(
+        path: '/catalog/beauty-services',
+        builder: (context, state) => const BeautyServicesListScreen(),
+        routes: [
+          GoRoute(path: 'new', builder: (context, state) => const BeautyServiceFormScreen()),
+          GoRoute(
+            path: ':id',
+            builder: (context, state) => BeautyServiceFormScreen(serviceId: state.pathParameters['id']),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/sales',
+        builder: (context, state) => const SalesListScreen(),
+        routes: [
+          GoRoute(path: 'my-sales', builder: (context, state) => const SalesListScreen(ownOnly: true)),
+          GoRoute(path: ':id', builder: (context, state) => SaleDetailScreen(saleId: state.pathParameters['id']!)),
+        ],
+      ),
+      GoRoute(
+        path: '/clients',
+        builder: (context, state) => const ClientsListScreen(),
+        routes: [
+          GoRoute(path: 'new', builder: (context, state) => const ClientFormScreen()),
+          GoRoute(
+            path: ':id',
+            builder: (context, state) => ClientDetailScreen(clientId: state.pathParameters['id']!),
+            routes: [
+              GoRoute(
+                path: 'edit',
+                builder: (context, state) => ClientFormScreen(clientId: state.pathParameters['id']),
+              ),
+            ],
+          ),
+        ],
+      ),
+      GoRoute(path: '/reports', builder: (context, state) => const ReportsScreen()),
+      GoRoute(
+        path: '/users',
+        builder: (context, state) => const UsersListScreen(),
+        routes: [
+          GoRoute(path: 'new', builder: (context, state) => const UserFormScreen()),
+          GoRoute(path: ':id', builder: (context, state) => UserFormScreen(userId: state.pathParameters['id'])),
+        ],
+      ),
+      GoRoute(path: '/settings', builder: (context, state) => const SettingsScreen()),
+      GoRoute(path: '/printer-settings', builder: (context, state) => const PrinterSettingsScreen()),
+      GoRoute(path: '/audit', builder: (context, state) => const AuditLogScreen()),
+      GoRoute(path: '/profile', builder: (context, state) => const ProfileScreen()),
+    ],
+  );
+});
