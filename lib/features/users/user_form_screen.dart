@@ -23,7 +23,7 @@ class UserFormScreen extends ConsumerStatefulWidget {
 class _UserFormScreenState extends ConsumerState<UserFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
+  final _usernameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
@@ -40,7 +40,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
       final user = ref.read(authRepositoryProvider).byId(widget.userId!);
       if (user != null) {
         _nameCtrl.text = user.name;
-        _emailCtrl.text = user.email;
+        _usernameCtrl.text = user.username;
         _phoneCtrl.text = user.phone ?? '';
         _role = user.role;
         _active = user.active;
@@ -52,7 +52,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _emailCtrl.dispose();
+    _usernameCtrl.dispose();
     _phoneCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
@@ -75,7 +75,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
         );
       } else {
         await repo.createUser(
-          email: _emailCtrl.text,
+          username: _usernameCtrl.text,
           name: _nameCtrl.text,
           role: _role,
           phone: _phoneCtrl.text,
@@ -87,7 +87,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
       final actor = ref.read(sessionProvider)!.user;
       await ref
           .read(auditServiceProvider)
-          .log(actor, _isEdit ? 'Utilisateur modifié' : 'Utilisateur créé', details: _emailCtrl.text);
+          .log(actor, _isEdit ? 'Utilisateur modifié' : 'Utilisateur créé', details: _usernameCtrl.text);
       if (mounted) {
         ToastService.success(_isEdit ? 'Utilisateur mis à jour' : 'Utilisateur créé');
         context.pop();
@@ -140,11 +140,10 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
                   ),
                   const SizedBox(height: AppSizes.sm),
                   TextFormField(
-                    controller: _emailCtrl,
-                    decoration: const InputDecoration(labelText: 'Email'),
+                    controller: _usernameCtrl,
+                    decoration: const InputDecoration(labelText: "Nom d'utilisateur"),
                     enabled: !_isEdit,
-                    keyboardType: TextInputType.emailAddress,
-                    validator: Validators.email,
+                    validator: (v) => Validators.required(v, field: "Le nom d'utilisateur"),
                   ),
                   const SizedBox(height: AppSizes.sm),
                   TextFormField(

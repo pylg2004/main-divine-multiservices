@@ -102,8 +102,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                       const SizedBox(height: AppSizes.sm),
                       TextFormField(
-                        initialValue: session.user.email,
-                        decoration: const InputDecoration(labelText: 'Email'),
+                        initialValue: session.user.username,
+                        decoration: const InputDecoration(labelText: "Nom d'utilisateur"),
                         enabled: false,
                       ),
                       const SizedBox(height: AppSizes.sm),

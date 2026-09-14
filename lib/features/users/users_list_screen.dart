@@ -45,7 +45,7 @@ class UsersListScreen extends ConsumerWidget {
                     child: Icon(workstation.icon, color: workstation.color),
                   ),
                   title: Text(u.name),
-                  subtitle: Text('${u.email} · ${u.role.label}'),
+                  subtitle: Text('${u.username} · ${u.role.label}'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

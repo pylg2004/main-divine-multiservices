@@ -10,12 +10,6 @@ class Validators {
     return null;
   }
 
-  static String? email(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Email requis';
-    if (!EmailValidator.validate(value.trim())) return 'Email invalide';
-    return null;
-  }
-
   static String? optionalEmail(String? value) {
     if (value == null || value.trim().isEmpty) return null;
     if (!EmailValidator.validate(value.trim())) return 'Email invalide';

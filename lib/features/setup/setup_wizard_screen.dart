@@ -37,7 +37,7 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
 
   // Étape 2
   final _adminNameCtrl = TextEditingController();
-  final _adminEmailCtrl = TextEditingController();
+  final _adminUsernameCtrl = TextEditingController();
   final _adminPhoneCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
@@ -58,7 +58,7 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
     _companyPhoneCtrl.dispose();
     _addressCtrl.dispose();
     _adminNameCtrl.dispose();
-    _adminEmailCtrl.dispose();
+    _adminUsernameCtrl.dispose();
     _adminPhoneCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
@@ -92,7 +92,7 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
       final authRepo = ref.read(authRepositoryProvider);
 
       await authRepo.createUser(
-        email: _adminEmailCtrl.text,
+        username: _adminUsernameCtrl.text,
         name: _adminNameCtrl.text,
         role: UserRole.superAdmin,
         phone: _adminPhoneCtrl.text,
@@ -273,10 +273,9 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
           ),
           const SizedBox(height: AppSizes.sm),
           TextFormField(
-            controller: _adminEmailCtrl,
-            decoration: const InputDecoration(labelText: 'Email'),
-            keyboardType: TextInputType.emailAddress,
-            validator: Validators.email,
+            controller: _adminUsernameCtrl,
+            decoration: const InputDecoration(labelText: "Nom d'utilisateur"),
+            validator: (v) => Validators.required(v, field: "Le nom d'utilisateur"),
           ),
           const SizedBox(height: AppSizes.sm),
           TextFormField(
@@ -364,7 +363,7 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
         const SizedBox(height: AppSizes.md),
         _SummaryRow('Entreprise', _companyNameCtrl.text),
         _SummaryRow('Super Admin', _adminNameCtrl.text),
-        _SummaryRow('Email', _adminEmailCtrl.text),
+        _SummaryRow("Nom d'utilisateur", _adminUsernameCtrl.text),
         _SummaryRow('Devise', _currencyCode),
         _SummaryRow('Imprimante', _printerType == null ? 'À configurer plus tard' : _printerType!.name),
         const SizedBox(height: AppSizes.md),

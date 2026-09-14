@@ -8,8 +8,10 @@ part 'user_model.g.dart';
 class UserModel extends HiveObject {
   @HiveField(0)
   String id;
+  /// Identifiant de connexion choisi et géré par l'admin — un simple nom
+  /// d'utilisateur, pas une adresse email (le personnel n'en a pas toujours).
   @HiveField(1)
-  String email;
+  String username;
   @HiveField(2)
   String name;
   @HiveField(3)
@@ -27,7 +29,7 @@ class UserModel extends HiveObject {
 
   UserModel({
     required this.id,
-    required this.email,
+    required this.username,
     required this.name,
     required this.role,
     this.phone,

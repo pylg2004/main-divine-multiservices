@@ -24,45 +24,45 @@ class AuthRepository {
 
   bool get hasAnyUser => HiveDatasource.users.isNotEmpty;
 
-  UserModel? findByEmail(String email) {
-    final normalized = email.trim().toLowerCase();
+  UserModel? findByUsername(String username) {
+    final normalized = username.trim().toLowerCase();
     try {
       return HiveDatasource.users.values
-          .firstWhere((u) => u.email.toLowerCase() == normalized);
+          .firstWhere((u) => u.username.toLowerCase() == normalized);
     } catch (_) {
       return null;
     }
   }
 
-  Future<UserModel> login(String email, String password) async {
-    final user = findByEmail(email);
+  Future<UserModel> login(String username, String password) async {
+    final user = findByUsername(username);
     if (user == null) {
-      throw const AuthException('Email ou mot de passe incorrect');
+      throw const AuthException("Nom d'utilisateur ou mot de passe incorrect");
     }
     if (!user.active) {
       throw const AuthException('Ce compte a été désactivé');
     }
     if (!verifyPassword(user, password)) {
-      throw const AuthException('Email ou mot de passe incorrect');
+      throw const AuthException("Nom d'utilisateur ou mot de passe incorrect");
     }
     return user;
   }
 
   Future<UserModel> createUser({
-    required String email,
+    required String username,
     required String name,
     required UserRole role,
     String? phone,
     required String password,
     bool active = true,
   }) async {
-    if (findByEmail(email) != null) {
-      throw const ValidationException('Un utilisateur avec cet email existe déjà');
+    if (findByUsername(username) != null) {
+      throw const ValidationException('Un utilisateur avec ce nom d\'utilisateur existe déjà');
     }
     final salt = generateSalt();
     final user = UserModel(
       id: _uuid.v4(),
-      email: email.trim(),
+      username: username.trim(),
       name: name.trim(),
       role: role,
       phone: phone?.trim(),

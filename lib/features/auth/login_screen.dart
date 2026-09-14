@@ -15,7 +15,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailCtrl = TextEditingController();
+  final _usernameCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _obscure = true;
   bool _submitting = false;
@@ -23,7 +23,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   void dispose() {
-    _emailCtrl.dispose();
+    _usernameCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
   }
@@ -35,7 +35,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
     });
     try {
-      await ref.read(sessionProvider.notifier).login(_emailCtrl.text.trim(), _passwordCtrl.text);
+      await ref.read(sessionProvider.notifier).login(_usernameCtrl.text.trim(), _passwordCtrl.text);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -77,10 +77,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: AppSizes.md),
                   ],
                   TextFormField(
-                    controller: _emailCtrl,
-                    decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email_outlined)),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (v) => Validators.required(v, field: 'Email'),
+                    controller: _usernameCtrl,
+                    decoration:
+                        const InputDecoration(labelText: "Nom d'utilisateur", prefixIcon: Icon(Icons.person_outline)),
+                    validator: (v) => Validators.required(v, field: "Le nom d'utilisateur"),
                     onFieldSubmitted: (_) => _submit(),
                   ),
                   const SizedBox(height: AppSizes.sm),

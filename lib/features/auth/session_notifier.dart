@@ -32,8 +32,8 @@ class SessionNotifier extends StateNotifier<Session?> {
     await prefs.remove(_prefsExpiryKey);
   }
 
-  Future<void> login(String email, String password) async {
-    final user = await _authRepository.login(email, password);
+  Future<void> login(String username, String password) async {
+    final user = await _authRepository.login(username, password);
     final expiry = DateTime.now().add(_sessionDuration);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsUserIdKey, user.id);
