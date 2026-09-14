@@ -53,6 +53,8 @@ class ThermalPrinterService {
 
     final isPos = sale.workstation == Workstation.pos;
     final isBeauty = sale.workstation == Workstation.beauty;
+    final isImpression = sale.workstation == Workstation.impression;
+    final isSinglePoste = isPos || isBeauty || isImpression;
 
     bytes += g.text(
       company.name,
@@ -62,8 +64,10 @@ class ThermalPrinterService {
       bytes += g.text('Papeterie · Livres · Tissus', styles: const PosStyles(align: PosAlign.center));
     } else if (isBeauty) {
       bytes += g.text('STUDIO DE BEAUTÉ', styles: const PosStyles(align: PosAlign.center));
+    } else if (isImpression) {
+      bytes += g.text('SERVICES D\'IMPRESSION', styles: const PosStyles(align: PosAlign.center));
     } else {
-      bytes += g.text('Papeterie · Beauté · Multiservices', styles: const PosStyles(align: PosAlign.center));
+      bytes += g.text('Papeterie · Beauté · Impression', styles: const PosStyles(align: PosAlign.center));
     }
     if (company.phone != null && company.phone!.isNotEmpty) {
       bytes += g.text('Tél: ${company.phone}', styles: const PosStyles(align: PosAlign.center));
@@ -75,12 +79,12 @@ class ThermalPrinterService {
     bytes += g.text('Client: ${sale.clientName}');
     if (sale.clientPhone.isNotEmpty) bytes += g.text('Tél: ${sale.clientPhone}');
     bytes += g.text(
-      'Servi par: ${sale.sellerName}${isPos || isBeauty ? '' : ' (${sale.workstation.name})'}',
+      'Servi par: ${sale.sellerName}${isSinglePoste ? '' : ' (${sale.workstation.name})'}',
     );
     bytes += g.hr();
 
     bytes += g.row([
-      PosColumn(text: isBeauty ? 'Service' : 'Article', width: 6),
+      PosColumn(text: isBeauty || isImpression ? 'Service' : 'Article', width: 6),
       PosColumn(text: 'Qté', width: 2, styles: const PosStyles(align: PosAlign.center)),
       PosColumn(text: 'Total', width: 4, styles: const PosStyles(align: PosAlign.right)),
     ]);
@@ -172,6 +176,8 @@ class ThermalPrinterService {
     required double posRevenue,
     required int beautySalesCount,
     required double beautyRevenue,
+    required int printSalesCount,
+    required double printRevenue,
     required Map<PaymentMethod, double> paymentsByMethod,
     required String editedBy,
   }) async {
@@ -189,10 +195,14 @@ class ThermalPrinterService {
     bytes += g.text('Nb ventes: $beautySalesCount');
     bytes += g.text('CA: ${_money(beautyRevenue, company)}');
     bytes += g.hr();
+    bytes += g.text('POSTE IMPRESSION', styles: const PosStyles(bold: true));
+    bytes += g.text('Nb ventes: $printSalesCount');
+    bytes += g.text('CA: ${_money(printRevenue, company)}');
+    bytes += g.hr();
     bytes += g.text('TOTAL CONSOLIDÉ', styles: const PosStyles(bold: true));
-    final total = posRevenue + beautyRevenue;
+    final total = posRevenue + beautyRevenue + printRevenue;
     bytes += g.text('CA TOTAL JOUR: ${_money(total, company)}', styles: const PosStyles(bold: true));
-    bytes += g.text('Nb ventes totales: ${posSalesCount + beautySalesCount}');
+    bytes += g.text('Nb ventes totales: ${posSalesCount + beautySalesCount + printSalesCount}');
     bytes += g.text('Paiements:');
     bytes += g.text(' - Espèces: ${_money(paymentsByMethod[PaymentMethod.especes] ?? 0, company)}');
     bytes += g.text(' - Carte: ${_money(paymentsByMethod[PaymentMethod.carte] ?? 0, company)}');

@@ -36,10 +36,12 @@ class AdminDashboardScreen extends ConsumerWidget {
 
     var posToday = 0.0;
     var beautyToday = 0.0;
+    var printToday = 0.0;
     for (final s in todaySales) {
-      final split = s.revenueSplit();
-      posToday += split.product;
-      beautyToday += split.beauty;
+      final split = s.revenueByType();
+      posToday += split[SaleItemType.product] ?? 0;
+      beautyToday += split[SaleItemType.beautyService] ?? 0;
+      printToday += split[SaleItemType.printService] ?? 0;
     }
 
     final last7 = List.generate(7, (i) => DateFormatter.startOfDay(DateTime.now().subtract(Duration(days: 6 - i))));
@@ -52,7 +54,7 @@ class AdminDashboardScreen extends ConsumerWidget {
           Text('Bonjour, ${session.user.name.split(' ').first}', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppSizes.md),
           GridView.count(
-            crossAxisCount: MediaQuery.sizeOf(context).width > 700 ? 3 : 2,
+            crossAxisCount: MediaQuery.sizeOf(context).width > 700 ? 4 : 2,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisSpacing: AppSizes.sm,
@@ -88,6 +90,12 @@ class AdminDashboardScreen extends ConsumerWidget {
                 value: MoneyFormatter.format(beautyToday),
                 icon: Icons.spa_outlined,
                 color: const Color(0xFFD4788F),
+              ),
+              StatCard(
+                label: 'Impression aujourd\'hui',
+                value: MoneyFormatter.format(printToday),
+                icon: Icons.local_printshop_outlined,
+                color: const Color(0xFFE08A2E),
               ),
               StatCard(
                 label: 'Ventes aujourd\'hui',
@@ -136,14 +144,17 @@ class AdminDashboardScreen extends ConsumerWidget {
                               allSales.where((s) => !s.date.isBefore(last7[i]) && s.date.isBefore(dayEnd));
                           var posDay = 0.0;
                           var beautyDay = 0.0;
+                          var printDay = 0.0;
                           for (final s in daySales) {
-                            final split = s.revenueSplit();
-                            posDay += split.product;
-                            beautyDay += split.beauty;
+                            final split = s.revenueByType();
+                            posDay += split[SaleItemType.product] ?? 0;
+                            beautyDay += split[SaleItemType.beautyService] ?? 0;
+                            printDay += split[SaleItemType.printService] ?? 0;
                           }
                           return BarChartGroupData(x: i, barRods: [
-                            BarChartRodData(toY: posDay, color: const Color(0xFF0F5A42), width: 8),
-                            BarChartRodData(toY: beautyDay, color: const Color(0xFFD4788F), width: 8),
+                            BarChartRodData(toY: posDay, color: const Color(0xFF0F5A42), width: 6),
+                            BarChartRodData(toY: beautyDay, color: const Color(0xFFD4788F), width: 6),
+                            BarChartRodData(toY: printDay, color: const Color(0xFFE08A2E), width: 6),
                           ]);
                         }(),
                     ],

@@ -25,6 +25,8 @@ class UserRoleAdapter extends TypeAdapter<UserRole> {
         return UserRole.caissier;
       case 5:
         return UserRole.beautician;
+      case 6:
+        return UserRole.imprimeur;
       default:
         return UserRole.superAdmin;
     }
@@ -50,6 +52,9 @@ class UserRoleAdapter extends TypeAdapter<UserRole> {
         break;
       case UserRole.beautician:
         writer.writeByte(5);
+        break;
+      case UserRole.imprimeur:
+        writer.writeByte(6);
         break;
     }
   }
@@ -78,6 +83,8 @@ class WorkstationAdapter extends TypeAdapter<Workstation> {
         return Workstation.beauty;
       case 2:
         return Workstation.admin;
+      case 3:
+        return Workstation.impression;
       default:
         return Workstation.pos;
     }
@@ -94,6 +101,9 @@ class WorkstationAdapter extends TypeAdapter<Workstation> {
         break;
       case Workstation.admin:
         writer.writeByte(2);
+        break;
+      case Workstation.impression:
+        writer.writeByte(3);
         break;
     }
   }
@@ -223,6 +233,8 @@ class SaleItemTypeAdapter extends TypeAdapter<SaleItemType> {
         return SaleItemType.product;
       case 1:
         return SaleItemType.beautyService;
+      case 2:
+        return SaleItemType.printService;
       default:
         return SaleItemType.product;
     }
@@ -237,6 +249,9 @@ class SaleItemTypeAdapter extends TypeAdapter<SaleItemType> {
       case SaleItemType.beautyService:
         writer.writeByte(1);
         break;
+      case SaleItemType.printService:
+        writer.writeByte(2);
+        break;
     }
   }
 
@@ -247,6 +262,65 @@ class SaleItemTypeAdapter extends TypeAdapter<SaleItemType> {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is SaleItemTypeAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
+}
+
+class PrintServiceCategoryAdapter extends TypeAdapter<PrintServiceCategory> {
+  @override
+  final int typeId = 29;
+
+  @override
+  PrintServiceCategory read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return PrintServiceCategory.impression;
+      case 1:
+        return PrintServiceCategory.flyers;
+      case 2:
+        return PrintServiceCategory.cartesDeVisite;
+      case 3:
+        return PrintServiceCategory.affiches;
+      case 4:
+        return PrintServiceCategory.servicesInformatiques;
+      case 5:
+        return PrintServiceCategory.autre;
+      default:
+        return PrintServiceCategory.impression;
+    }
+  }
+
+  @override
+  void write(BinaryWriter writer, PrintServiceCategory obj) {
+    switch (obj) {
+      case PrintServiceCategory.impression:
+        writer.writeByte(0);
+        break;
+      case PrintServiceCategory.flyers:
+        writer.writeByte(1);
+        break;
+      case PrintServiceCategory.cartesDeVisite:
+        writer.writeByte(2);
+        break;
+      case PrintServiceCategory.affiches:
+        writer.writeByte(3);
+        break;
+      case PrintServiceCategory.servicesInformatiques:
+        writer.writeByte(4);
+        break;
+      case PrintServiceCategory.autre:
+        writer.writeByte(5);
+        break;
+    }
+  }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PrintServiceCategoryAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }

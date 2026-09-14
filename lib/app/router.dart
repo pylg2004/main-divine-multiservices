@@ -14,8 +14,11 @@ import '../features/catalog/products/products_list_screen.dart';
 import '../features/clients/client_detail_screen.dart';
 import '../features/clients/client_form_screen.dart';
 import '../features/clients/clients_list_screen.dart';
+import '../features/catalog/print_services/print_service_form_screen.dart';
+import '../features/catalog/print_services/print_services_list_screen.dart';
 import '../features/dashboard/admin/admin_dashboard_screen.dart';
 import '../features/dashboard/beauty/beauty_dashboard_screen.dart';
+import '../features/dashboard/impression/impression_dashboard_screen.dart';
 import '../features/dashboard/pos/pos_dashboard_screen.dart';
 import '../features/printer_settings/printer_settings_screen.dart';
 import '../features/profile/profile_screen.dart';
@@ -38,8 +41,10 @@ const Map<String, List<Workstation>> _routeWorkstations = {
   '/dashboard/pos': [Workstation.pos],
   '/dashboard/beauty': [Workstation.beauty],
   '/dashboard/admin': [Workstation.admin],
+  '/dashboard/impression': [Workstation.impression],
   '/catalog/products': [Workstation.pos, Workstation.admin],
   '/catalog/beauty-services': [Workstation.beauty, Workstation.admin],
+  '/catalog/print-services': [Workstation.impression, Workstation.admin],
   '/reports': [Workstation.admin],
   '/users': [Workstation.admin],
   '/settings': [Workstation.admin],
@@ -102,6 +107,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/dashboard/pos', builder: (context, state) => const PosDashboardScreen()),
       GoRoute(path: '/dashboard/beauty', builder: (context, state) => const BeautyDashboardScreen()),
       GoRoute(path: '/dashboard/admin', builder: (context, state) => const AdminDashboardScreen()),
+      GoRoute(path: '/dashboard/impression', builder: (context, state) => const ImpressionDashboardScreen()),
       GoRoute(path: '/sale', builder: (context, state) => const SaleScreen()),
       GoRoute(
         path: '/catalog/products',
@@ -119,6 +125,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: ':id',
             builder: (context, state) => BeautyServiceFormScreen(serviceId: state.pathParameters['id']),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/catalog/print-services',
+        builder: (context, state) => const PrintServicesListScreen(),
+        routes: [
+          GoRoute(path: 'new', builder: (context, state) => const PrintServiceFormScreen()),
+          GoRoute(
+            path: ':id',
+            builder: (context, state) => PrintServiceFormScreen(serviceId: state.pathParameters['id']),
           ),
         ],
       ),

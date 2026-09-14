@@ -59,19 +59,21 @@ class SaleModel extends HiveObject {
   double get subtotal => items.fold(0, (sum, item) => sum + item.sum);
   double get total => (subtotal - discount).clamp(0, double.infinity);
 
-  /// Répartit [total] (donc après remise) entre produits et services.
+  /// Répartit [total] (donc après remise) entre types de lignes (produit,
+  /// service beauté, service impression).
   ///
   /// Une vente n'est PAS toujours d'un seul type : le poste Admin vend depuis
-  /// un panier unifié qui peut mélanger produits et services dans une même
-  /// vente (reçu "mixte", spec §9). Attribuer le CA par `sale.workstation`
-  /// ferait disparaître ces ventes admin des totaux POS/Beauté ; on répartit
-  /// donc au prorata du sous-total de chaque type de ligne à la place.
-  ({double product, double beauty}) revenueSplit() {
-    if (subtotal <= 0) return (product: 0, beauty: 0);
-    final productSubtotal =
-        items.where((i) => i.type == SaleItemType.product).fold<double>(0, (sum, i) => sum + i.sum);
-    final productShare = productSubtotal / subtotal;
-    final productRevenue = total * productShare;
-    return (product: productRevenue, beauty: total - productRevenue);
+  /// un panier unifié qui peut mélanger plusieurs types dans une même vente
+  /// (reçu "mixte", spec §9). Attribuer le CA par `sale.workstation` ferait
+  /// disparaître ces ventes admin des totaux par poste ; on répartit donc au
+  /// prorata du sous-total de chaque type de ligne à la place.
+  Map<SaleItemType, double> revenueByType() {
+    if (subtotal <= 0) {
+      return {for (final t in SaleItemType.values) t: 0};
+    }
+    return {
+      for (final t in SaleItemType.values)
+        t: total * (items.where((i) => i.type == t).fold<double>(0, (sum, i) => sum + i.sum) / subtotal),
+    };
   }
 }

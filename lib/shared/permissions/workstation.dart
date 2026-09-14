@@ -16,6 +16,8 @@ extension WorkstationExtension on UserRole {
         return Workstation.pos;
       case UserRole.beautician:
         return Workstation.beauty;
+      case UserRole.imprimeur:
+        return Workstation.impression;
     }
   }
 }
@@ -29,6 +31,8 @@ extension WorkstationInfo on Workstation {
         return 'Soins & Beauté';
       case Workstation.admin:
         return 'Administration';
+      case Workstation.impression:
+        return 'Impression';
     }
   }
 
@@ -40,6 +44,8 @@ extension WorkstationInfo on Workstation {
         return const Color(0xFFD4788F);
       case Workstation.admin:
         return const Color(0xFF2D6CDF);
+      case Workstation.impression:
+        return const Color(0xFFE08A2E);
     }
   }
 
@@ -51,6 +57,8 @@ extension WorkstationInfo on Workstation {
         return Icons.spa;
       case Workstation.admin:
         return Icons.admin_panel_settings;
+      case Workstation.impression:
+        return Icons.local_printshop_outlined;
     }
   }
 
@@ -62,6 +70,8 @@ extension WorkstationInfo on Workstation {
         return '/dashboard/beauty';
       case Workstation.admin:
         return '/dashboard/admin';
+      case Workstation.impression:
+        return '/dashboard/impression';
     }
   }
 }
@@ -81,6 +91,8 @@ extension UserRoleLabel on UserRole {
         return 'Caissier';
       case UserRole.beautician:
         return 'Beautician';
+      case UserRole.imprimeur:
+        return 'Imprimeur';
     }
   }
 }

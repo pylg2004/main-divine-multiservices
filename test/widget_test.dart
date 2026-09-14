@@ -20,6 +20,10 @@ void main() {
     test('beautician -> poste Soins & Beauté', () {
       expect(UserRole.beautician.workstation, Workstation.beauty);
     });
+
+    test('imprimeur -> poste Impression', () {
+      expect(UserRole.imprimeur.workstation, Workstation.impression);
+    });
   });
 
   group('Matrice des permissions (spec §6)', () {
@@ -61,6 +65,21 @@ void main() {
       expect(PermissionService.has(UserRole.superAdmin, Permission.reportsViewConsolidated), true);
       expect(PermissionService.has(UserRole.admin, Permission.reportsViewConsolidated), true);
       expect(PermissionService.has(UserRole.manager, Permission.reportsViewConsolidated), false);
+    });
+
+    test('imprimeur ne voit que ses propres ventes et ne gère pas le catalogue produits/beauté', () {
+      expect(PermissionService.has(UserRole.imprimeur, Permission.salesViewOwn), true);
+      expect(PermissionService.has(UserRole.imprimeur, Permission.salesViewAll), false);
+      expect(PermissionService.has(UserRole.imprimeur, Permission.salesCreatePrintService), true);
+      expect(PermissionService.has(UserRole.imprimeur, Permission.printServicesCreateEdit), false);
+      expect(PermissionService.has(UserRole.imprimeur, Permission.productsView), false);
+      expect(PermissionService.has(UserRole.imprimeur, Permission.beautyServicesView), false);
+    });
+
+    test('seuls superAdmin, admin et manager gèrent le catalogue impression', () {
+      expect(PermissionService.has(UserRole.manager, Permission.printServicesCreateEdit), true);
+      expect(PermissionService.has(UserRole.imprimeur, Permission.printServicesCreateEdit), false);
+      expect(PermissionService.has(UserRole.vendeur, Permission.printServicesView), false);
     });
   });
 }

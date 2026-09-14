@@ -76,6 +76,12 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                       selected: _workstationFilter == Workstation.beauty,
                       onSelected: (_) => setState(() => _workstationFilter = Workstation.beauty),
                     ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: const Text('Impression'),
+                      selected: _workstationFilter == Workstation.impression,
+                      onSelected: (_) => setState(() => _workstationFilter = Workstation.impression),
+                    ),
                     const SizedBox(width: 16),
                     ChoiceChip(
                       label: const Text('Annulées uniquement'),

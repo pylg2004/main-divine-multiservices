@@ -13,6 +13,7 @@ import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../auth/session_notifier.dart';
 import '../../catalog/beauty_services/beauty_services_list_screen.dart';
+import '../../catalog/print_services/print_services_list_screen.dart';
 import '../../catalog/products/products_list_screen.dart';
 import '../../clients/client_picker.dart';
 import 'checkout_sheet.dart';
@@ -73,6 +74,17 @@ class _SaleScreenState extends ConsumerState<SaleScreen> {
           type: SaleItemType.beautyService,
           title: s.name,
           categoryLabel: beautyCategoryLabel(s.category),
+          price: s.price,
+        ));
+      }
+    }
+    if (workstation == Workstation.impression || workstation == Workstation.admin) {
+      for (final s in ref.watch(printServicesListProvider).where((s) => s.active)) {
+        entries.add(_CatalogEntry(
+          id: s.id,
+          type: SaleItemType.printService,
+          title: s.name,
+          categoryLabel: printCategoryLabel(s.category),
           price: s.price,
         ));
       }

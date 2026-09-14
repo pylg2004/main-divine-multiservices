@@ -4,6 +4,7 @@ import '../data/repositories/audit_repository.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/repositories/beauty_service_repository.dart';
 import '../data/repositories/client_repository.dart';
+import '../data/repositories/print_service_repository.dart';
 import '../data/repositories/product_repository.dart';
 import '../data/repositories/sale_repository.dart';
 import '../data/repositories/settings_repository.dart';
@@ -18,6 +19,8 @@ final authRepositoryProvider = Provider((ref) => AuthRepository());
 final productRepositoryProvider = Provider((ref) => ProductRepository());
 final beautyServiceRepositoryProvider =
     Provider((ref) => BeautyServiceRepository());
+final printServiceRepositoryProvider =
+    Provider((ref) => PrintServiceRepository());
 final clientRepositoryProvider = Provider((ref) => ClientRepository());
 final saleRepositoryProvider = Provider((ref) => SaleRepository());
 final auditRepositoryProvider = Provider((ref) => AuditRepository());

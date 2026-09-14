@@ -72,12 +72,14 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
     var posRevenue = 0.0;
     var beautyRevenue = 0.0;
+    var printRevenue = 0.0;
     for (final s in sales) {
-      final split = s.revenueSplit();
-      posRevenue += split.product;
-      beautyRevenue += split.beauty;
+      final split = s.revenueByType();
+      posRevenue += split[SaleItemType.product] ?? 0;
+      beautyRevenue += split[SaleItemType.beautyService] ?? 0;
+      printRevenue += split[SaleItemType.printService] ?? 0;
     }
-    final totalRevenue = posRevenue + beautyRevenue;
+    final totalRevenue = posRevenue + beautyRevenue + printRevenue;
     final averageTicket = sales.isEmpty ? 0 : totalRevenue / sales.length;
     final uniqueClients = sales.map((s) => s.clientId).whereType<String>().toSet().length;
 
@@ -128,6 +130,9 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                       beautySalesCount:
                           sales.where((s) => s.items.any((i) => i.type == SaleItemType.beautyService)).length,
                       beautyRevenue: beautyRevenue,
+                      printSalesCount:
+                          sales.where((s) => s.items.any((i) => i.type == SaleItemType.printService)).length,
+                      printRevenue: printRevenue,
                       paymentsByMethod: paymentTotals,
                       editedBy: ref.read(sessionProvider)!.user.name,
                     );
@@ -184,6 +189,12 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   selected: _workstationFilter == Workstation.beauty,
                   onSelected: (_) => setState(() => _workstationFilter = Workstation.beauty),
                 ),
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: const Text('Impression'),
+                  selected: _workstationFilter == Workstation.impression,
+                  onSelected: (_) => setState(() => _workstationFilter = Workstation.impression),
+                ),
               ],
             ),
           ),
@@ -200,7 +211,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             children: [
               StatCard(label: 'CA total', value: MoneyFormatter.format(totalRevenue), icon: Icons.payments_outlined, color: Colors.blue),
               StatCard(label: 'CA produits', value: MoneyFormatter.format(posRevenue), icon: Icons.storefront_outlined, color: const Color(0xFF0F5A42)),
-              StatCard(label: 'CA services', value: MoneyFormatter.format(beautyRevenue), icon: Icons.spa_outlined, color: const Color(0xFFD4788F)),
+              StatCard(label: 'CA services beauté', value: MoneyFormatter.format(beautyRevenue), icon: Icons.spa_outlined, color: const Color(0xFFD4788F)),
+              StatCard(label: 'CA impression', value: MoneyFormatter.format(printRevenue), icon: Icons.local_printshop_outlined, color: const Color(0xFFE08A2E)),
               StatCard(label: 'Nb ventes', value: '${sales.length}', icon: Icons.receipt_long_outlined, color: Colors.purple),
               StatCard(label: 'Ticket moyen', value: MoneyFormatter.format(averageTicket), icon: Icons.confirmation_number_outlined, color: Colors.teal),
               StatCard(label: 'Clients uniques', value: '$uniqueClients', icon: Icons.people_outline, color: Colors.indigo),

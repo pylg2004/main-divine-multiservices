@@ -1,10 +1,10 @@
 import '../../data/models/enums.dart';
 import 'permission.dart';
 
-/// Source unique de vérité pour la matrice des permissions (spec §6).
-/// Toute vérification d'accès — rendu de widget, garde de route, action —
-/// doit passer par [PermissionService.has] plutôt que par un test de rôle
-/// direct, pour rester cohérente partout dans l'app.
+/// Source unique de vérité pour la matrice des permissions (spec §6, étendue
+/// avec le poste Impression). Toute vérification d'accès — rendu de widget,
+/// garde de route, action — doit passer par [PermissionService.has] plutôt
+/// que par un test de rôle direct, pour rester cohérente partout dans l'app.
 class PermissionService {
   PermissionService._();
 
@@ -12,15 +12,20 @@ class PermissionService {
     Permission.dashboardViewPos,
     Permission.dashboardViewBeauty,
     Permission.dashboardViewAdmin,
+    Permission.dashboardViewImpression,
     Permission.productsView,
     Permission.productsCreateEdit,
     Permission.productsDelete,
     Permission.beautyServicesView,
     Permission.beautyServicesCreateEdit,
     Permission.beautyServicesDelete,
+    Permission.printServicesView,
+    Permission.printServicesCreateEdit,
+    Permission.printServicesDelete,
     Permission.salesViewAll,
     Permission.salesCreateProduct,
     Permission.salesCreateService,
+    Permission.salesCreatePrintService,
     Permission.salesEdit,
     Permission.salesCancel,
     Permission.salesDelete,
@@ -32,6 +37,7 @@ class PermissionService {
     Permission.discountApply,
     Permission.reportsViewPos,
     Permission.reportsViewBeauty,
+    Permission.reportsViewImpression,
     Permission.reportsViewConsolidated,
     Permission.reportsPrint,
     Permission.usersManage,
@@ -46,15 +52,20 @@ class PermissionService {
       Permission.dashboardViewPos,
       Permission.dashboardViewBeauty,
       Permission.dashboardViewAdmin,
+      Permission.dashboardViewImpression,
       Permission.productsView,
       Permission.productsCreateEdit,
       Permission.productsDelete,
       Permission.beautyServicesView,
       Permission.beautyServicesCreateEdit,
       Permission.beautyServicesDelete,
+      Permission.printServicesView,
+      Permission.printServicesCreateEdit,
+      Permission.printServicesDelete,
       Permission.salesViewAll,
       Permission.salesCreateProduct,
       Permission.salesCreateService,
+      Permission.salesCreatePrintService,
       Permission.salesEdit,
       Permission.salesCancel,
       Permission.salesPrint,
@@ -65,6 +76,7 @@ class PermissionService {
       Permission.discountApply,
       Permission.reportsViewPos,
       Permission.reportsViewBeauty,
+      Permission.reportsViewImpression,
       Permission.reportsViewConsolidated,
       Permission.reportsPrint,
       Permission.printerSettingsManage,
@@ -74,12 +86,16 @@ class PermissionService {
       Permission.dashboardViewPos,
       Permission.dashboardViewBeauty,
       Permission.dashboardViewAdmin,
+      Permission.dashboardViewImpression,
       Permission.productsView,
       Permission.beautyServicesView,
       Permission.beautyServicesCreateEdit,
+      Permission.printServicesView,
+      Permission.printServicesCreateEdit,
       Permission.salesViewAll,
       Permission.salesCreateProduct,
       Permission.salesCreateService,
+      Permission.salesCreatePrintService,
       Permission.salesCancel,
       Permission.salesPrint,
       Permission.clientsView,
@@ -88,6 +104,7 @@ class PermissionService {
       Permission.discountApply,
       Permission.reportsViewPos,
       Permission.reportsViewBeauty,
+      Permission.reportsViewImpression,
       Permission.reportsPrint,
     },
     UserRole.vendeur: {
@@ -115,6 +132,16 @@ class PermissionService {
       Permission.beautyServicesView,
       Permission.salesViewOwn,
       Permission.salesCreateService,
+      Permission.salesPrint,
+      Permission.clientsView,
+      Permission.clientsCreateEdit,
+      Permission.clientsPrintCard,
+    },
+    UserRole.imprimeur: {
+      Permission.dashboardViewImpression,
+      Permission.printServicesView,
+      Permission.salesViewOwn,
+      Permission.salesCreatePrintService,
       Permission.salesPrint,
       Permission.clientsView,
       Permission.clientsCreateEdit,

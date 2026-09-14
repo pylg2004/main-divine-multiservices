@@ -18,6 +18,8 @@ enum UserRole {
   caissier,
   @HiveField(5)
   beautician,
+  @HiveField(6)
+  imprimeur,
 }
 
 /// Poste de travail — jamais choisi directement par l'utilisateur, toujours
@@ -30,6 +32,8 @@ enum Workstation {
   beauty,
   @HiveField(2)
   admin,
+  @HiveField(3)
+  impression,
 }
 
 @HiveType(typeId: 22)
@@ -64,6 +68,28 @@ enum SaleItemType {
   product,
   @HiveField(1)
   beautyService,
+  @HiveField(2)
+  printService,
+}
+
+/// Catégories libres : "Impression" couvre le travail générique, les autres
+/// valeurs les cas mentionnés explicitement (flyers, services informatiques).
+/// [PrintServiceModel.description] reste le champ texte libre pour préciser
+/// une commande particulière.
+@HiveType(typeId: 29)
+enum PrintServiceCategory {
+  @HiveField(0)
+  impression,
+  @HiveField(1)
+  flyers,
+  @HiveField(2)
+  cartesDeVisite,
+  @HiveField(3)
+  affiches,
+  @HiveField(4)
+  servicesInformatiques,
+  @HiveField(5)
+  autre,
 }
 
 @HiveType(typeId: 25)
