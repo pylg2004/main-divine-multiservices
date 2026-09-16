@@ -1,11 +1,17 @@
+import 'dart:async';
+
 import 'package:uuid/uuid.dart';
 
 import '../datasources/local/hive_datasource.dart';
+import '../datasources/remote/firestore_sync_service.dart';
 import '../models/enums.dart';
 import '../models/product_model.dart';
 
 class ProductRepository {
   final _uuid = const Uuid();
+  final _sync = FirestoreSyncService.instance;
+
+  static const _collection = 'products';
 
   List<ProductModel> all({bool activeOnly = false}) {
     final list = HiveDatasource.products.values
@@ -26,7 +32,7 @@ class ProductRepository {
     required ProductCategory category,
     required double price,
     required String unit,
-    int stock = 0,
+    double stock = 0,
     String? color,
   }) async {
     final product = ProductModel(
@@ -40,6 +46,7 @@ class ProductRepository {
       createdAt: DateTime.now(),
     );
     await HiveDatasource.products.put(product.id, product);
+    unawaited(_pushToFirestore(product));
     return product;
   }
 
@@ -49,7 +56,7 @@ class ProductRepository {
     ProductCategory? category,
     double? price,
     String? unit,
-    int? stock,
+    double? stock,
     String? color,
     bool? active,
   }) async {
@@ -61,16 +68,60 @@ class ProductRepository {
     if (color != null) product.color = color.trim();
     if (active != null) product.active = active;
     await product.save();
+    unawaited(_pushToFirestore(product));
   }
 
-  Future<void> adjustStock(String productId, int delta) async {
+  Future<void> adjustStock(String productId, double delta) async {
     final product = byId(productId);
     if (product == null) return;
     product.stock += delta;
     await product.save();
+    unawaited(_pushToFirestore(product));
   }
 
   Future<void> delete(String id) async {
     await HiveDatasource.products.delete(id);
+    unawaited(_sync.deleteDoc(_collection, id));
+  }
+
+  /// Récupère le catalogue produits depuis Firestore (source de vérité) et
+  /// remplace le cache local. À appeler au démarrage de l'app — si
+  /// Firestore n'est pas configuré ou injoignable, le cache local existant
+  /// est conservé tel quel.
+  Future<void> pullFromFirestore() async {
+    final docs = await _sync.pullCollection(_collection);
+    for (final data in docs) {
+      await HiveDatasource.products.put(data['id'] as String, _fromFirestore(data));
+    }
+  }
+
+  Future<void> _pushToFirestore(ProductModel product) {
+    return _sync.pushDoc(_collection, product.id, {
+      'name': product.name,
+      'category': product.category.name,
+      'price': product.price,
+      'unit': product.unit,
+      'stock': product.stock,
+      'color': product.color,
+      'active': product.active,
+      'createdAt': product.createdAt,
+    });
+  }
+
+  ProductModel _fromFirestore(Map<String, dynamic> data) {
+    return ProductModel(
+      id: data['id'] as String,
+      name: data['name'] as String? ?? '',
+      category: ProductCategory.values.firstWhere(
+        (c) => c.name == data['category'],
+        orElse: () => ProductCategory.papeterie,
+      ),
+      price: (data['price'] as num?)?.toDouble() ?? 0,
+      unit: data['unit'] as String? ?? 'unité',
+      stock: (data['stock'] as num?)?.toDouble() ?? 0,
+      color: data['color'] as String?,
+      active: data['active'] as bool? ?? true,
+      createdAt: data['createdAt'] as DateTime? ?? DateTime.now(),
+    );
   }
 }

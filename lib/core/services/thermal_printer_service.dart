@@ -12,6 +12,7 @@ import '../../data/repositories/settings_repository.dart';
 import '../errors/app_exception.dart';
 import '../utils/date_formatter.dart';
 import '../utils/money_formatter.dart';
+import '../utils/qty_formatter.dart';
 
 /// Construit les tickets ESC/POS (spec §9) et les envoie directement à
 /// l'imprimante configurée — jamais de PDF (règle §5 du prompt).
@@ -92,7 +93,11 @@ class ThermalPrinterService {
     for (final item in sale.items) {
       bytes += g.row([
         PosColumn(text: item.title, width: 6),
-        PosColumn(text: '${item.qty}', width: 2, styles: const PosStyles(align: PosAlign.center)),
+        PosColumn(
+          text: QtyFormatter.format(item.qty, fractional: QtyFormatter.isFractionalUnit(item.unit)),
+          width: 2,
+          styles: const PosStyles(align: PosAlign.center),
+        ),
         PosColumn(text: _money(item.sum, company), width: 4, styles: const PosStyles(align: PosAlign.right)),
       ]);
     }
@@ -243,7 +248,7 @@ class ThermalPrinterService {
       for (final item in topItems) {
         bytes += g.row([
           PosColumn(text: item.title, width: 8),
-          PosColumn(text: '${item.qty.toInt()}', width: 4, styles: const PosStyles(align: PosAlign.right)),
+          PosColumn(text: QtyFormatter.plain(item.qty), width: 4, styles: const PosStyles(align: PosAlign.right)),
         ]);
       }
     }

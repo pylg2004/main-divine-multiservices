@@ -22,7 +22,7 @@ class ProductModelAdapter extends TypeAdapter<ProductModel> {
       category: fields[2] as ProductCategory,
       price: fields[3] as double,
       unit: fields[4] as String,
-      stock: fields[5] as int,
+      stock: (fields[5] as num).toDouble(),
       color: fields[6] as String?,
       active: fields[7] as bool,
       createdAt: fields[8] as DateTime,

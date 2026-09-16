@@ -44,9 +44,12 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# This app is fully local/offline (Hive) and does not use Firebase — ignore
-# any google-services.json / GoogleService-Info.plist an external tool
-# auto-registers so a live API key never gets committed by accident.
+# Firestore (voir lib/core/config/firebase_config.dart) est la base de
+# données prioritaire ; Hive reste le cache hors-ligne. Les identifiants de
+# connexion (project id / clé API / compte de synchronisation) sont fournis
+# via --dart-define-from-file=firebase.env.json plutôt que codés en dur, et
+# ce fichier ne doit jamais être commité.
+firebase.env.json
 google-services.json
 GoogleService-Info.plist
 firebase.json

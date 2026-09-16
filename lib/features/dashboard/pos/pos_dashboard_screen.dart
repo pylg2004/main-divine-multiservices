@@ -6,6 +6,7 @@ import '../../../core/constants/app_sizes.dart';
 import '../../../core/providers.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/utils/money_formatter.dart';
+import '../../../core/utils/qty_formatter.dart';
 import '../../../data/models/enums.dart';
 import '../../../data/models/sale_model.dart';
 import '../../../shared/widgets/app_shell.dart';
@@ -89,7 +90,9 @@ class PosDashboardScreen extends ConsumerWidget {
                     .map((p) => ListTile(
                           leading: const Icon(Icons.warning_amber_outlined, color: Colors.orange),
                           title: Text(p.name),
-                          trailing: Text('${p.stock} ${p.unit} restant(s)'),
+                          trailing: Text(
+                            '${QtyFormatter.format(p.stock, fractional: p.category == ProductCategory.tissu)} ${p.unit} restant(s)',
+                          ),
                           onTap: () => context.push('/catalog/products/${p.id}'),
                         ))
                     .toList(),

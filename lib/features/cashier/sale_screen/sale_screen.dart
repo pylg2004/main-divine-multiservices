@@ -5,11 +5,13 @@ import '../../../core/constants/app_sizes.dart';
 import '../../../core/providers.dart';
 import '../../../core/services/toast_service.dart';
 import '../../../core/utils/money_formatter.dart';
+import '../../../core/utils/qty_formatter.dart';
 import '../../../data/models/client_model.dart';
 import '../../../data/models/enums.dart';
 import '../../../data/models/sale_item_model.dart';
 import '../../../shared/permissions/permission.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../../shared/widgets/aune_quantity_picker.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../auth/session_notifier.dart';
 import '../../catalog/beauty_services/beauty_services_list_screen.dart';
@@ -196,7 +198,18 @@ class _SaleScreenState extends ConsumerState<SaleScreen> {
                     return Card(
                       child: InkWell(
                         borderRadius: BorderRadius.circular(12),
-                        onTap: () {
+                        onTap: () async {
+                          var qty = 1.0;
+                          if (QtyFormatter.isFractionalUnit(e.unit)) {
+                            final picked = await showAuneQuantityPicker(
+                              context,
+                              title: e.title,
+                              unitPrice: e.price,
+                            );
+                            if (picked == null) return;
+                            qty = picked;
+                          }
+                          if (!context.mounted) return;
                           ref.read(cartProvider.notifier).add(CartItem(
                                 referenceId: e.id,
                                 type: e.type,
@@ -205,6 +218,7 @@ class _SaleScreenState extends ConsumerState<SaleScreen> {
                                 unit: e.unit,
                                 color: e.color,
                                 unitPrice: e.price,
+                                qty: qty,
                               ));
                         },
                         child: Padding(
@@ -261,6 +275,8 @@ class _CartPane extends ConsumerWidget {
                   separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, i) {
                     final item = cart[i];
+                    final fractional = QtyFormatter.isFractionalUnit(item.unit);
+                    final step = fractional ? QtyFormatter.auneStep : 1.0;
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(item.title),
@@ -272,14 +288,30 @@ class _CartPane extends ConsumerWidget {
                             icon: const Icon(Icons.remove_circle_outline),
                             onPressed: () => ref
                                 .read(cartProvider.notifier)
-                                .updateQty(item.referenceId, item.type, item.qty - 1),
+                                .updateQty(item.referenceId, item.type, item.qty - step),
                           ),
-                          Text('${item.qty}'),
+                          InkWell(
+                            onTap: fractional
+                                ? () async {
+                                    final picked = await showAuneQuantityPicker(
+                                      context,
+                                      title: item.title,
+                                      initial: item.qty,
+                                      unitPrice: item.unitPrice,
+                                    );
+                                    if (picked == null) return;
+                                    ref
+                                        .read(cartProvider.notifier)
+                                        .updateQty(item.referenceId, item.type, picked);
+                                  }
+                                : null,
+                            child: Text(QtyFormatter.format(item.qty, fractional: fractional)),
+                          ),
                           IconButton(
                             icon: const Icon(Icons.add_circle_outline),
                             onPressed: () => ref
                                 .read(cartProvider.notifier)
-                                .updateQty(item.referenceId, item.type, item.qty + 1),
+                                .updateQty(item.referenceId, item.type, item.qty + step),
                           ),
                         ],
                       ),

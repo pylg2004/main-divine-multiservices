@@ -11,7 +11,7 @@ class CartItem {
   final String unit;
   final String? color;
   final double unitPrice;
-  final int qty;
+  final double qty;
 
   const CartItem({
     required this.referenceId,
@@ -26,7 +26,7 @@ class CartItem {
 
   double get sum => unitPrice * qty;
 
-  CartItem copyWith({int? qty}) => CartItem(
+  CartItem copyWith({double? qty}) => CartItem(
         referenceId: referenceId,
         type: type,
         title: title,
@@ -57,7 +57,7 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
     }
   }
 
-  void updateQty(String referenceId, SaleItemType type, int qty) {
+  void updateQty(String referenceId, SaleItemType type, double qty) {
     if (qty <= 0) {
       remove(referenceId, type);
       return;

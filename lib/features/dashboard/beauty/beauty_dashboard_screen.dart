@@ -58,7 +58,8 @@ class BeautyDashboardScreen extends ConsumerWidget {
               ),
               StatCard(
                 label: 'Services vendus',
-                value: '${todaySales.fold<int>(0, (sum, s) => sum + s.items.fold(0, (n, i) => n + i.qty))}',
+                value:
+                    '${todaySales.fold<double>(0, (sum, s) => sum + s.items.fold<double>(0, (n, i) => n + i.qty)).round()}',
                 icon: Icons.spa_outlined,
                 color: Colors.purple,
               ),

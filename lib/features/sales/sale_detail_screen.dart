@@ -7,6 +7,7 @@ import '../../core/providers.dart';
 import '../../core/services/toast_service.dart';
 import '../../core/utils/date_formatter.dart';
 import '../../core/utils/money_formatter.dart';
+import '../../core/utils/qty_formatter.dart';
 import '../../data/models/enums.dart';
 import '../../shared/permissions/permission.dart';
 import '../../shared/permissions/workstation.dart';
@@ -149,7 +150,11 @@ class SaleDetailScreen extends ConsumerWidget {
                 for (final item in sale.items)
                   ListTile(
                     title: Text(item.title),
-                    subtitle: Text('${item.qty} × ${MoneyFormatter.format(item.unitPrice)}'),
+                    subtitle: Text(
+                      '${QtyFormatter.format(item.qty, fractional: QtyFormatter.isFractionalUnit(item.unit))}'
+                      '${QtyFormatter.isFractionalUnit(item.unit) ? ' ${item.unit}' : ''}'
+                      ' × ${MoneyFormatter.format(item.unitPrice)}',
+                    ),
                     trailing: Text(MoneyFormatter.format(item.sum)),
                   ),
                 const Divider(height: 1),

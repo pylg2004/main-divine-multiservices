@@ -17,7 +17,7 @@ class ProductModel extends HiveObject {
   @HiveField(4)
   String unit;
   @HiveField(5)
-  int stock;
+  double stock;
   @HiveField(6)
   String? color;
   @HiveField(7)

@@ -24,7 +24,7 @@ class SaleItemModelAdapter extends TypeAdapter<SaleItemModel> {
       category: fields[4] as String?,
       unit: fields[5] as String,
       color: fields[6] as String?,
-      qty: fields[7] as int,
+      qty: (fields[7] as num).toDouble(),
       unitPrice: fields[8] as double,
     );
   }

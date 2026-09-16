@@ -21,7 +21,7 @@ class SaleItemModel {
   @HiveField(6)
   String? color;
   @HiveField(7)
-  int qty;
+  double qty;
   @HiveField(8)
   double unitPrice;
 

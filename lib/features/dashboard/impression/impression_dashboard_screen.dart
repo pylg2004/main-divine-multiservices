@@ -58,7 +58,8 @@ class ImpressionDashboardScreen extends ConsumerWidget {
               ),
               StatCard(
                 label: 'Commandes du jour',
-                value: '${todaySales.fold<int>(0, (sum, s) => sum + s.items.fold(0, (n, i) => n + i.qty))}',
+                value:
+                    '${todaySales.fold<double>(0, (sum, s) => sum + s.items.fold<double>(0, (n, i) => n + i.qty)).round()}',
                 icon: Icons.local_printshop_outlined,
                 color: Colors.deepOrange,
               ),

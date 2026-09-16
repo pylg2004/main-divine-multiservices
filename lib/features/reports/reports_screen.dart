@@ -7,6 +7,7 @@ import '../../core/providers.dart';
 import '../../core/services/toast_service.dart';
 import '../../core/utils/date_formatter.dart';
 import '../../core/utils/money_formatter.dart';
+import '../../core/utils/qty_formatter.dart';
 import '../../data/models/enums.dart';
 import '../../shared/permissions/permission.dart';
 import '../../shared/widgets/app_shell.dart';
@@ -301,7 +302,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                 : Column(
                     children: topItems
                         .take(10)
-                        .map((e) => ListTile(title: Text(e.key), trailing: Text('${e.value.toInt()} vendu(s)')))
+                        .map((e) => ListTile(title: Text(e.key), trailing: Text('${QtyFormatter.plain(e.value)} vendu(s)')))
                         .toList(),
                   ),
           ),

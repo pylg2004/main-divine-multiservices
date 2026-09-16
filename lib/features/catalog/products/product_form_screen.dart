@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/providers.dart';
 import '../../../core/services/toast_service.dart';
+import '../../../core/utils/qty_formatter.dart';
 import '../../../core/utils/validators.dart';
 import '../../../data/models/enums.dart';
 import '../../../shared/permissions/permission.dart';
@@ -12,6 +13,8 @@ import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../auth/session_notifier.dart';
 import 'products_list_screen.dart';
+
+const _auneUnit = 'aune';
 
 class ProductFormScreen extends ConsumerStatefulWidget {
   final String? productId;
@@ -31,8 +34,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   ProductCategory _category = ProductCategory.papeterie;
   bool _active = true;
   bool _loaded = false;
+  int _auneWhole = 0;
+  int _auneQuarters = 0;
 
   bool get _isEdit => widget.productId != null;
+  bool get _isTissu => _category == ProductCategory.tissu;
 
   @override
   void initState() {
@@ -47,9 +53,32 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         _colorCtrl.text = product.color ?? '';
         _category = product.category;
         _active = product.active;
+        _setAuneFromStock(product.stock);
       }
     }
+    if (_isTissu) _unitCtrl.text = _auneUnit;
     _loaded = true;
+  }
+
+  void _setAuneFromStock(double stock) {
+    final rounded = QtyFormatter.roundToStep(stock.abs());
+    var whole = rounded.truncate();
+    var quarters = ((rounded - whole) * 4).round();
+    if (quarters == 4) {
+      whole += 1;
+      quarters = 0;
+    }
+    _auneWhole = whole;
+    _auneQuarters = quarters;
+  }
+
+  void _onCategoryChanged(ProductCategory? c) {
+    setState(() {
+      _category = c ?? _category;
+      if (_isTissu) {
+        _unitCtrl.text = _auneUnit;
+      }
+    });
   }
 
   @override
@@ -66,7 +95,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final repo = ref.read(productRepositoryProvider);
     final price = double.parse(_priceCtrl.text.replaceAll(',', '.'));
-    final stock = int.tryParse(_stockCtrl.text) ?? 0;
+    final stock = _isTissu
+        ? _auneWhole + _auneQuarters * QtyFormatter.auneStep
+        : (double.tryParse(_stockCtrl.text.replaceAll(',', '.')) ?? 0);
+    final unit = _isTissu ? _auneUnit : _unitCtrl.text;
     if (_isEdit) {
       final product = repo.byId(widget.productId!)!;
       await repo.update(
@@ -74,7 +106,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         name: _nameCtrl.text,
         category: _category,
         price: price,
-        unit: _unitCtrl.text,
+        unit: unit,
         stock: stock,
         color: _colorCtrl.text,
         active: _active,
@@ -84,7 +116,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         name: _nameCtrl.text,
         category: _category,
         price: price,
-        unit: _unitCtrl.text,
+        unit: unit,
         stock: stock,
         color: _colorCtrl.text,
       );
@@ -146,7 +178,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                     items: ProductCategory.values
                         .map((c) => DropdownMenuItem(value: c, child: Text(productCategoryLabel(c))))
                         .toList(),
-                    onChanged: (v) => setState(() => _category = v ?? _category),
+                    onChanged: _onCategoryChanged,
                   ),
                   const SizedBox(height: AppSizes.sm),
                   Row(
@@ -154,7 +186,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       Expanded(
                         child: TextFormField(
                           controller: _priceCtrl,
-                          decoration: const InputDecoration(labelText: 'Prix'),
+                          decoration: InputDecoration(labelText: _isTissu ? 'Prix par aune' : 'Prix'),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           validator: (v) => Validators.positiveNumber(v, field: 'Le prix'),
                         ),
@@ -163,30 +195,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       Expanded(
                         child: TextFormField(
                           controller: _unitCtrl,
+                          enabled: !_isTissu,
                           decoration: const InputDecoration(labelText: 'Unité (ex: unité, mètre)'),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: AppSizes.sm),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _stockCtrl,
-                          decoration: const InputDecoration(labelText: 'Stock'),
-                          keyboardType: TextInputType.number,
-                        ),
-                      ),
-                      const SizedBox(width: AppSizes.sm),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _colorCtrl,
-                          decoration: const InputDecoration(labelText: 'Couleur (optionnel)'),
-                        ),
-                      ),
-                    ],
-                  ),
+                  if (_isTissu) _buildAuneStockPicker() else _buildStockRow(),
                   const SizedBox(height: AppSizes.sm),
                   SwitchListTile(
                     title: const Text('Actif'),
@@ -203,6 +219,94 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildStockRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: TextFormField(
+            controller: _stockCtrl,
+            decoration: const InputDecoration(labelText: 'Stock'),
+            keyboardType: TextInputType.number,
+          ),
+        ),
+        const SizedBox(width: AppSizes.sm),
+        Expanded(
+          child: TextFormField(
+            controller: _colorCtrl,
+            decoration: const InputDecoration(labelText: 'Couleur (optionnel)'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAuneStockPicker() {
+    final total = _auneWhole + _auneQuarters * QtyFormatter.auneStep;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Stock (en aune)', style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: AppSizes.sm),
+        Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.remove_circle_outline),
+              onPressed: _auneWhole > 0 ? () => setState(() => _auneWhole--) : null,
+            ),
+            SizedBox(
+              width: 48,
+              child: Text(
+                '$_auneWhole',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              onPressed: () => setState(() => _auneWhole++),
+            ),
+            const SizedBox(width: AppSizes.sm),
+            const Text('aune(s)'),
+          ],
+        ),
+        const SizedBox(height: AppSizes.sm),
+        Wrap(
+          spacing: AppSizes.sm,
+          children: [
+            ChoiceChip(
+              label: const Text('Aucun'),
+              selected: _auneQuarters == 0,
+              onSelected: (_) => setState(() => _auneQuarters = 0),
+            ),
+            ChoiceChip(
+              label: const Text('1/4'),
+              selected: _auneQuarters == 1,
+              onSelected: (_) => setState(() => _auneQuarters = 1),
+            ),
+            ChoiceChip(
+              label: const Text('1/2'),
+              selected: _auneQuarters == 2,
+              onSelected: (_) => setState(() => _auneQuarters = 2),
+            ),
+            ChoiceChip(
+              label: const Text('3/4'),
+              selected: _auneQuarters == 3,
+              onSelected: (_) => setState(() => _auneQuarters = 3),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSizes.sm),
+        Text('Quantité en stock: ${QtyFormatter.aune(total)} aune',
+            style: const TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: AppSizes.sm),
+        TextFormField(
+          controller: _colorCtrl,
+          decoration: const InputDecoration(labelText: 'Couleur (optionnel)'),
+        ),
+      ],
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/providers.dart';
 import '../../../core/utils/money_formatter.dart';
+import '../../../core/utils/qty_formatter.dart';
 import '../../../data/models/enums.dart';
 import '../../../data/models/product_model.dart';
 import '../../../shared/permissions/permission.dart';
@@ -157,7 +158,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                                   ),
                                 ),
                                 Text(
-                                  'Stock: ${p.stock} ${p.unit}',
+                                  'Stock: ${QtyFormatter.format(p.stock, fractional: p.category == ProductCategory.tissu)} ${p.unit}',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: p.stock <= 3 ? Colors.orange : Colors.grey,
