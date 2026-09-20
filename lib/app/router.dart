@@ -18,6 +18,7 @@ import '../features/catalog/print_services/print_service_form_screen.dart';
 import '../features/catalog/print_services/print_services_list_screen.dart';
 import '../features/dashboard/admin/admin_dashboard_screen.dart';
 import '../features/dashboard/beauty/beauty_dashboard_screen.dart';
+import '../features/dashboard/general/general_dashboard_screen.dart';
 import '../features/dashboard/impression/impression_dashboard_screen.dart';
 import '../features/dashboard/pos/pos_dashboard_screen.dart';
 import '../features/printer_settings/printer_settings_screen.dart';
@@ -42,9 +43,10 @@ const Map<String, List<Workstation>> _routeWorkstations = {
   '/dashboard/beauty': [Workstation.beauty],
   '/dashboard/admin': [Workstation.admin],
   '/dashboard/impression': [Workstation.impression],
-  '/catalog/products': [Workstation.pos, Workstation.admin],
-  '/catalog/beauty-services': [Workstation.beauty, Workstation.admin],
-  '/catalog/print-services': [Workstation.impression, Workstation.admin],
+  '/dashboard/general': [Workstation.general],
+  '/catalog/products': [Workstation.pos, Workstation.admin, Workstation.general],
+  '/catalog/beauty-services': [Workstation.beauty, Workstation.admin, Workstation.general],
+  '/catalog/print-services': [Workstation.impression, Workstation.admin, Workstation.general],
   '/users': [Workstation.admin],
   '/settings': [Workstation.admin],
   '/printer-settings': [Workstation.admin],
@@ -84,7 +86,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (session == null) {
         return loc == '/login' ? null : '/login';
       }
-      if (loc == '/login' || loc == '/dashboard') {
+      if (loc == '/login' || loc == '/dashboard' || loc == '/') {
         return session.workstation.homeRoute;
       }
 
@@ -111,6 +113,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/dashboard/beauty', builder: (context, state) => const BeautyDashboardScreen()),
       GoRoute(path: '/dashboard/admin', builder: (context, state) => const AdminDashboardScreen()),
       GoRoute(path: '/dashboard/impression', builder: (context, state) => const ImpressionDashboardScreen()),
+      GoRoute(path: '/dashboard/general', builder: (context, state) => const GeneralDashboardScreen()),
       GoRoute(path: '/sale', builder: (context, state) => const SaleScreen()),
       GoRoute(
         path: '/catalog/products',

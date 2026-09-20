@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/utils/pricing.dart';
 import '../../../data/models/client_model.dart';
 import '../../../data/models/enums.dart';
 
@@ -24,7 +25,9 @@ class CartItem {
     this.qty = 1,
   });
 
-  double get sum => unitPrice * qty;
+  bool get hasBulkDiscount => Pricing.appliesBulkDiscount(qty);
+
+  double get sum => Pricing.lineTotal(qty, unitPrice);
 
   CartItem copyWith({double? qty}) => CartItem(
         referenceId: referenceId,

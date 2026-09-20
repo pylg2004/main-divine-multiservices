@@ -1,5 +1,6 @@
 import 'package:hive/hive.dart';
 
+import '../../core/utils/pricing.dart';
 import 'enums.dart';
 
 part 'sale_item_model.g.dart';
@@ -37,5 +38,7 @@ class SaleItemModel {
     required this.unitPrice,
   });
 
-  double get sum => qty * unitPrice;
+  bool get hasBulkDiscount => Pricing.appliesBulkDiscount(qty);
+
+  double get sum => Pricing.lineTotal(qty, unitPrice);
 }

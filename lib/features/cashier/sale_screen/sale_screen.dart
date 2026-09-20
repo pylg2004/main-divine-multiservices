@@ -56,7 +56,7 @@ class _SaleScreenState extends ConsumerState<SaleScreen> {
 
   List<_CatalogEntry> _catalogFor(Workstation workstation) {
     final entries = <_CatalogEntry>[];
-    if (workstation == Workstation.pos || workstation == Workstation.admin) {
+    if (workstation == Workstation.pos || workstation == Workstation.admin || workstation == Workstation.general) {
       for (final p in ref.watch(productsListProvider).where((p) => p.active)) {
         entries.add(_CatalogEntry(
           id: p.id,
@@ -69,7 +69,7 @@ class _SaleScreenState extends ConsumerState<SaleScreen> {
         ));
       }
     }
-    if (workstation == Workstation.beauty || workstation == Workstation.admin) {
+    if (workstation == Workstation.beauty || workstation == Workstation.admin || workstation == Workstation.general) {
       for (final s in ref.watch(beautyServicesListProvider).where((s) => s.active)) {
         entries.add(_CatalogEntry(
           id: s.id,
@@ -80,7 +80,7 @@ class _SaleScreenState extends ConsumerState<SaleScreen> {
         ));
       }
     }
-    if (workstation == Workstation.impression || workstation == Workstation.admin) {
+    if (workstation == Workstation.impression || workstation == Workstation.admin || workstation == Workstation.general) {
       for (final s in ref.watch(printServicesListProvider).where((s) => s.active)) {
         entries.add(_CatalogEntry(
           id: s.id,
@@ -280,7 +280,14 @@ class _CartPane extends ConsumerWidget {
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(item.title),
-                      subtitle: Text(MoneyFormatter.format(item.unitPrice)),
+                      subtitle: Text(
+                        item.hasBulkDiscount
+                            ? '${MoneyFormatter.format(item.unitPrice)} · -10% (quantité > 3)'
+                            : MoneyFormatter.format(item.unitPrice),
+                        style: item.hasBulkDiscount
+                            ? const TextStyle(color: Colors.green, fontWeight: FontWeight.w600)
+                            : null,
+                      ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [

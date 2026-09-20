@@ -20,6 +20,11 @@ enum UserRole {
   beautician,
   @HiveField(6)
   imprimeur,
+  /// Vendeur polyvalent : vend indifféremment produits (papeterie, tissu,
+  /// boissons...), services beauté et services impression depuis une
+  /// caisse unifiée — sans les permissions de gestion de l'Administrateur.
+  @HiveField(7)
+  vendeurGeneral,
 }
 
 /// Poste de travail — jamais choisi directement par l'utilisateur, toujours
@@ -34,6 +39,8 @@ enum Workstation {
   admin,
   @HiveField(3)
   impression,
+  @HiveField(4)
+  general,
 }
 
 @HiveType(typeId: 22)

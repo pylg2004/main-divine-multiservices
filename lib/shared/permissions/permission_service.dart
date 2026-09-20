@@ -13,6 +13,7 @@ class PermissionService {
     Permission.dashboardViewBeauty,
     Permission.dashboardViewAdmin,
     Permission.dashboardViewImpression,
+    Permission.dashboardViewGeneral,
     Permission.productsView,
     Permission.productsCreateEdit,
     Permission.productsDelete,
@@ -148,6 +149,25 @@ class PermissionService {
       Permission.dashboardViewImpression,
       Permission.printServicesView,
       Permission.salesViewOwn,
+      Permission.salesCreatePrintService,
+      Permission.salesPrint,
+      Permission.clientsView,
+      Permission.clientsCreateEdit,
+      Permission.clientsPrintCard,
+      Permission.reportsViewOwn,
+      Permission.reportsPrint,
+    },
+    // Vendeur polyvalent : vend produits, services beauté et services
+    // impression depuis la caisse unifiée, mais ne gère pas le catalogue
+    // (pas de création/édition/suppression) ni les autres utilisateurs.
+    UserRole.vendeurGeneral: {
+      Permission.dashboardViewGeneral,
+      Permission.productsView,
+      Permission.beautyServicesView,
+      Permission.printServicesView,
+      Permission.salesViewOwn,
+      Permission.salesCreateProduct,
+      Permission.salesCreateService,
       Permission.salesCreatePrintService,
       Permission.salesPrint,
       Permission.clientsView,

@@ -16,8 +16,12 @@ import '../../../shared/widgets/stat_grid.dart';
 import '../../auth/session_notifier.dart';
 import '../../catalog/products/products_list_screen.dart';
 
-class PosDashboardScreen extends ConsumerWidget {
-  const PosDashboardScreen({super.key});
+/// Tableau de bord du "Vendeur Général" : mêmes indicateurs que le poste
+/// Papeterie/POS, mais sur les ventes du poste [Workstation.general], qui
+/// mélange produits, services beauté et services impression (caisse
+/// unifiée — voir `_catalogFor` dans sale_screen.dart).
+class GeneralDashboardScreen extends ConsumerWidget {
+  const GeneralDashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -25,7 +29,7 @@ class PosDashboardScreen extends ConsumerWidget {
     final session = ref.watch(sessionProvider)!;
     final today = DateFormatter.startOfDay(DateTime.now());
 
-    final allSales = ref.watch(saleRepositoryProvider).byWorkstation(Workstation.pos);
+    final allSales = ref.watch(saleRepositoryProvider).byWorkstation(Workstation.general);
     final todaySales = allSales.where((s) => !s.date.isBefore(today) && s.status == SaleStatus.complete).toList();
     final revenue = todaySales.fold<double>(0, (sum, s) => sum + s.total);
 
@@ -38,10 +42,10 @@ class PosDashboardScreen extends ConsumerWidget {
         topCounts[item.title] = (topCounts[item.title] ?? 0) + item.qty;
       }
     }
-    final topProducts = topCounts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final topItems = topCounts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
 
     return AppShell(
-      title: 'Tableau de bord — Papeterie / POS',
+      title: 'Tableau de bord — Vente Générale',
       child: ListView(
         padding: const EdgeInsets.all(AppSizes.md),
         children: [
@@ -53,7 +57,7 @@ class PosDashboardScreen extends ConsumerWidget {
                 label: "CA du jour",
                 value: MoneyFormatter.format(revenue),
                 icon: Icons.payments_outlined,
-                color: Colors.green,
+                color: Colors.deepPurple,
               ),
               StatCard(
                 label: 'Ventes du jour',
@@ -65,7 +69,7 @@ class PosDashboardScreen extends ConsumerWidget {
                 label: 'Produits actifs',
                 value: '${products.where((p) => p.active).length}',
                 icon: Icons.inventory_2_outlined,
-                color: Colors.purple,
+                color: Colors.teal,
               ),
               StatCard(
                 label: 'Stock faible',
@@ -95,15 +99,15 @@ class PosDashboardScreen extends ConsumerWidget {
             ),
             const SizedBox(height: AppSizes.lg),
           ],
-          Text('Top 5 produits vendus aujourd\'hui', style: Theme.of(context).textTheme.titleMedium),
+          Text('Top 5 vendus aujourd\'hui', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppSizes.sm),
-          topProducts.isEmpty
+          topItems.isEmpty
               ? const EmptyState(icon: Icons.bar_chart_outlined, title: 'Aucune vente aujourd\'hui')
               : Card(
                   child: Column(
-                    children: topProducts
+                    children: topItems
                         .take(5)
-                        .map((e) => ListTile(title: Text(e.key), trailing: Text('${e.value.toInt()} vendu(s)')))
+                        .map((e) => ListTile(title: Text(e.key), trailing: Text('${QtyFormatter.plain(e.value)} vendu(s)')))
                         .toList(),
                   ),
                 ),

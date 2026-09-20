@@ -27,6 +27,8 @@ class UserRoleAdapter extends TypeAdapter<UserRole> {
         return UserRole.beautician;
       case 6:
         return UserRole.imprimeur;
+      case 7:
+        return UserRole.vendeurGeneral;
       default:
         return UserRole.superAdmin;
     }
@@ -55,6 +57,9 @@ class UserRoleAdapter extends TypeAdapter<UserRole> {
         break;
       case UserRole.imprimeur:
         writer.writeByte(6);
+        break;
+      case UserRole.vendeurGeneral:
+        writer.writeByte(7);
         break;
     }
   }
@@ -85,6 +90,8 @@ class WorkstationAdapter extends TypeAdapter<Workstation> {
         return Workstation.admin;
       case 3:
         return Workstation.impression;
+      case 4:
+        return Workstation.general;
       default:
         return Workstation.pos;
     }
@@ -104,6 +111,9 @@ class WorkstationAdapter extends TypeAdapter<Workstation> {
         break;
       case Workstation.impression:
         writer.writeByte(3);
+        break;
+      case Workstation.general:
+        writer.writeByte(4);
         break;
     }
   }

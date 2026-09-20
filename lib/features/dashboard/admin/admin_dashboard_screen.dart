@@ -12,6 +12,7 @@ import '../../../shared/permissions/workstation.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/stat_card.dart';
+import '../../../shared/widgets/stat_grid.dart';
 import '../../auth/session_notifier.dart';
 
 class AdminDashboardScreen extends ConsumerWidget {
@@ -53,13 +54,7 @@ class AdminDashboardScreen extends ConsumerWidget {
         children: [
           Text('Bonjour, ${session.user.name.split(' ').first}', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppSizes.md),
-          GridView.count(
-            crossAxisCount: MediaQuery.sizeOf(context).width > 700 ? 4 : 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: AppSizes.sm,
-            mainAxisSpacing: AppSizes.sm,
-            childAspectRatio: 1.4,
+          StatGrid(
             children: [
               StatCard(
                 label: 'CA aujourd\'hui',

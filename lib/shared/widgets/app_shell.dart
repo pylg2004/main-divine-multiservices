@@ -63,6 +63,17 @@ const _navByWorkstation = <Workstation, List<_NavItem>>{
     _NavItem('/reports', 'Mon rapport', Icons.bar_chart_outlined, Permission.reportsViewOwn),
     _NavItem('/profile', 'Profil', Icons.person_outline),
   ],
+  Workstation.general: [
+    _NavItem('/dashboard/general', 'Tableau de bord', Icons.dashboard_outlined),
+    _NavItem('/sale', 'Caisse', Icons.point_of_sale_outlined),
+    _NavItem('/catalog/products', 'Produits', Icons.inventory_2_outlined),
+    _NavItem('/catalog/beauty-services', 'Services beauté', Icons.spa_outlined),
+    _NavItem('/catalog/print-services', 'Services impression', Icons.local_printshop_outlined),
+    _NavItem('/clients', 'Clients', Icons.people_outline),
+    _NavItem('/sales', 'Ventes', Icons.receipt_long_outlined),
+    _NavItem('/reports', 'Mon rapport', Icons.bar_chart_outlined, Permission.reportsViewOwn),
+    _NavItem('/profile', 'Profil', Icons.person_outline),
+  ],
   Workstation.admin: [
     _NavItem('/dashboard/admin', 'Tableau de bord', Icons.dashboard_outlined),
     _NavItem('/sale', 'Caisse', Icons.point_of_sale_outlined),
@@ -109,7 +120,12 @@ class AppShell extends ConsumerWidget {
 
     final scaffold = Scaffold(
       appBar: AppBar(
-        title: Text(title),
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 14),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         backgroundColor: workstation.color,
         foregroundColor: Colors.white,
         actions: [

@@ -13,6 +13,7 @@ import '../../shared/permissions/permission.dart';
 import '../../shared/widgets/app_shell.dart';
 import '../../shared/widgets/permission_gate.dart';
 import '../../shared/widgets/stat_card.dart';
+import '../../shared/widgets/stat_grid.dart';
 import '../auth/session_notifier.dart';
 
 enum ReportPeriod { day, week, month, year, custom }
@@ -224,13 +225,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           const SizedBox(height: AppSizes.md),
           Text(_periodLabel(), style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: AppSizes.sm),
-          GridView.count(
-            crossAxisCount: MediaQuery.sizeOf(context).width > 700 ? 4 : 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: AppSizes.sm,
-            mainAxisSpacing: AppSizes.sm,
-            childAspectRatio: 1.4,
+          StatGrid(
             children: [
               StatCard(label: 'CA total', value: MoneyFormatter.format(totalRevenue), icon: Icons.payments_outlined, color: Colors.blue),
               StatCard(label: 'CA produits', value: MoneyFormatter.format(posRevenue), icon: Icons.storefront_outlined, color: const Color(0xFF0F5A42)),
