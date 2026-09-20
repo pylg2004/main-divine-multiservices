@@ -24,6 +24,11 @@ class ProductModel extends HiveObject {
   bool active;
   @HiveField(8)
   DateTime createdAt;
+  /// Décidé par l'admin/gestionnaire : si `false`, ce produit n'est jamais
+  /// concerné par la remise quantité automatique (10 % dès 3 achetés),
+  /// quelle que soit la quantité vendue.
+  @HiveField(9)
+  bool discountEligible;
 
   ProductModel({
     required this.id,
@@ -35,5 +40,6 @@ class ProductModel extends HiveObject {
     this.color,
     this.active = true,
     required this.createdAt,
+    this.discountEligible = true,
   });
 }

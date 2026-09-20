@@ -51,6 +51,8 @@ enum ProductCategory {
   tissu,
   @HiveField(2)
   livre,
+  @HiveField(3)
+  boisson,
 }
 
 @HiveType(typeId: 23)

@@ -9,7 +9,6 @@ import '../../../core/utils/qty_formatter.dart';
 import '../../../data/models/client_model.dart';
 import '../../../data/models/enums.dart';
 import '../../../data/models/sale_item_model.dart';
-import '../../../shared/permissions/permission.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/aune_quantity_picker.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -29,6 +28,7 @@ class _CatalogEntry {
   final String unit;
   final String? color;
   final double price;
+  final bool discountEligible;
   const _CatalogEntry({
     required this.id,
     required this.type,
@@ -37,6 +37,7 @@ class _CatalogEntry {
     this.unit = 'unité',
     this.color,
     required this.price,
+    this.discountEligible = true,
   });
 }
 
@@ -66,6 +67,7 @@ class _SaleScreenState extends ConsumerState<SaleScreen> {
           unit: p.unit,
           color: p.color,
           price: p.price,
+          discountEligible: p.discountEligible,
         ));
       }
     }
@@ -219,6 +221,7 @@ class _SaleScreenState extends ConsumerState<SaleScreen> {
                                 color: e.color,
                                 unitPrice: e.price,
                                 qty: qty,
+                                discountEligible: e.discountEligible,
                               ));
                         },
                         child: Padding(
@@ -258,11 +261,9 @@ class _CartPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cart = ref.watch(cartProvider);
-    final session = ref.watch(sessionProvider)!;
     final client = ref.watch(selectedClientProvider);
-    final discount = ref.watch(discountProvider);
     final subtotal = cart.fold<double>(0, (sum, i) => sum + i.sum);
-    final total = (subtotal - discount).clamp(0, double.infinity).toDouble();
+    final total = subtotal;
 
     return Column(
       children: [
@@ -282,7 +283,7 @@ class _CartPane extends ConsumerWidget {
                       title: Text(item.title),
                       subtitle: Text(
                         item.hasBulkDiscount
-                            ? '${MoneyFormatter.format(item.unitPrice)} · -10% (quantité > 3)'
+                            ? '${MoneyFormatter.format(item.unitPrice)} · -10% (quantité ≥ 3)'
                             : MoneyFormatter.format(item.unitPrice),
                         style: item.hasBulkDiscount
                             ? const TextStyle(color: Colors.green, fontWeight: FontWeight.w600)
@@ -297,9 +298,9 @@ class _CartPane extends ConsumerWidget {
                                 .read(cartProvider.notifier)
                                 .updateQty(item.referenceId, item.type, item.qty - step),
                           ),
-                          InkWell(
-                            onTap: fractional
-                                ? () async {
+                          fractional
+                              ? InkWell(
+                                  onTap: () async {
                                     final picked = await showAuneQuantityPicker(
                                       context,
                                       title: item.title,
@@ -310,10 +311,15 @@ class _CartPane extends ConsumerWidget {
                                     ref
                                         .read(cartProvider.notifier)
                                         .updateQty(item.referenceId, item.type, picked);
-                                  }
-                                : null,
-                            child: Text(QtyFormatter.format(item.qty, fractional: fractional)),
-                          ),
+                                  },
+                                  child: Text(QtyFormatter.format(item.qty, fractional: true)),
+                                )
+                              : _CartQtyField(
+                                  qty: item.qty,
+                                  onChanged: (v) => ref
+                                      .read(cartProvider.notifier)
+                                      .updateQty(item.referenceId, item.type, v),
+                                ),
                           IconButton(
                             icon: const Icon(Icons.add_circle_outline),
                             onPressed: () => ref
@@ -336,8 +342,15 @@ class _CartPane extends ConsumerWidget {
             children: [
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.person_outline),
-                title: Text(client?.fullName ?? 'Client anonyme'),
+                leading: Icon(
+                  Icons.person_outline,
+                  color: client == null ? Colors.red : null,
+                ),
+                title: Text(
+                  client?.fullName ?? 'Client requis',
+                  style: client == null ? const TextStyle(color: Colors.red, fontWeight: FontWeight.bold) : null,
+                ),
+                subtitle: client == null ? const Text('Sélectionnez un client pour pouvoir encaisser') : null,
                 trailing: TextButton(
                   onPressed: () async {
                     final selected = await showClientPicker(context, ref);
@@ -346,36 +359,14 @@ class _CartPane extends ConsumerWidget {
                   child: const Text('Choisir'),
                 ),
               ),
-              if (session.can(Permission.discountApply))
-                Row(
-                  children: [
-                    const Text('Remise:'),
-                    const SizedBox(width: AppSizes.sm),
-                    Expanded(
-                      child: Slider(
-                        value: discount.clamp(0, subtotal == 0 ? 1 : subtotal),
-                        min: 0,
-                        max: subtotal == 0 ? 1 : subtotal,
-                        onChanged: (v) => ref.read(discountProvider.notifier).state = v,
-                      ),
-                    ),
-                    Text(MoneyFormatter.format(discount)),
-                  ],
-                ),
               _totalRow('Sous-total', MoneyFormatter.format(subtotal)),
-              if (discount > 0) _totalRow('Remise', '-${MoneyFormatter.format(discount)}'),
               _totalRow('TOTAL', MoneyFormatter.format(total), bold: true),
               const SizedBox(height: AppSizes.sm),
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: cart.isEmpty
-                          ? null
-                          : () {
-                              ref.read(cartProvider.notifier).clear();
-                              ref.read(discountProvider.notifier).state = 0;
-                            },
+                      onPressed: cart.isEmpty ? null : () => ref.read(cartProvider.notifier).clear(),
                       child: const Text('Vider'),
                     ),
                   ),
@@ -383,9 +374,9 @@ class _CartPane extends ConsumerWidget {
                   Expanded(
                     flex: 2,
                     child: FilledButton.icon(
-                      onPressed: cart.isEmpty
+                      onPressed: cart.isEmpty || client == null
                           ? null
-                          : () => _checkout(context, ref, client, discount, total),
+                          : () => _checkout(context, ref, client, total),
                       icon: const Icon(Icons.payments_outlined),
                       label: const Text('Encaisser'),
                     ),
@@ -413,8 +404,7 @@ class _CartPane extends ConsumerWidget {
   Future<void> _checkout(
     BuildContext context,
     WidgetRef ref,
-    ClientModel? client,
-    double discount,
+    ClientModel client,
     double total,
   ) async {
     final method = await showCheckoutSheet(context, total: total);
@@ -433,6 +423,7 @@ class _CartPane extends ConsumerWidget {
               color: c.color,
               qty: c.qty,
               unitPrice: c.unitPrice,
+              discountEligible: c.discountEligible,
             ))
         .toList();
 
@@ -443,22 +434,19 @@ class _CartPane extends ConsumerWidget {
           sellerName: session.user.name,
           sellerRole: session.user.role.name,
           workstation: session.workstation,
-          clientId: client?.id,
-          clientName: client?.fullName ?? 'Client anonyme',
-          clientPhone: client?.phone ?? '',
+          clientId: client.id,
+          clientName: client.fullName,
+          clientPhone: client.phone,
           items: items,
-          discount: discount,
           paymentMethod: method,
           loyaltyPointsEarned: loyaltyPoints,
         );
 
-    if (client != null) {
-      await ref.read(clientRepositoryProvider).registerVisit(
-            clientId: client.id,
-            amountSpent: total,
-            pointsEarned: loyaltyPoints,
-          );
-    }
+    await ref.read(clientRepositoryProvider).registerVisit(
+          clientId: client.id,
+          amountSpent: total,
+          pointsEarned: loyaltyPoints,
+        );
 
     await ref.read(auditServiceProvider).log(
           session.user,
@@ -468,7 +456,6 @@ class _CartPane extends ConsumerWidget {
 
     ref.read(cartProvider.notifier).clear();
     ref.read(selectedClientProvider.notifier).state = null;
-    ref.read(discountProvider.notifier).state = 0;
     ref.read(dataRevisionProvider.notifier).state++;
 
     if (context.mounted) {
@@ -482,5 +469,84 @@ class _CartPane extends ConsumerWidget {
         if (context.mounted) ToastService.error(e.toString());
       }
     }
+  }
+}
+
+/// Petit champ de saisie pour la quantité d'une ligne du panier — plus
+/// rapide que les boutons +/- pour entrer un grand nombre. Garde son
+/// propre contrôleur pour permettre la frappe libre, et ne pousse la
+/// valeur vers le panier qu'à la validation (submit/perte de focus) ; se
+/// resynchronise sur `qty` si celle-ci change ailleurs (boutons +/-).
+class _CartQtyField extends StatefulWidget {
+  final double qty;
+  final ValueChanged<double> onChanged;
+
+  const _CartQtyField({required this.qty, required this.onChanged});
+
+  @override
+  State<_CartQtyField> createState() => _CartQtyFieldState();
+}
+
+class _CartQtyFieldState extends State<_CartQtyField> {
+  late final TextEditingController _ctrl;
+  late final FocusNode _focusNode;
+
+  static String _format(double q) => q == q.roundToDouble() ? q.round().toString() : q.toString();
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: _format(widget.qty));
+    _focusNode = FocusNode();
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        _ctrl.selection = TextSelection(baseOffset: 0, extentOffset: _ctrl.text.length);
+      } else {
+        _submit();
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _CartQtyField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final current = double.tryParse(_ctrl.text.replaceAll(',', '.'));
+    if (oldWidget.qty != widget.qty && current != widget.qty) {
+      _ctrl.text = _format(widget.qty);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final parsed = double.tryParse(_ctrl.text.replaceAll(',', '.'));
+    if (parsed != null && parsed > 0) {
+      widget.onChanged(parsed);
+    } else {
+      _ctrl.text = _format(widget.qty);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 48,
+      child: TextField(
+        controller: _ctrl,
+        focusNode: _focusNode,
+        textAlign: TextAlign.center,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: const InputDecoration(
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(vertical: 4),
+        ),
+        onSubmitted: (_) => _focusNode.unfocus(),
+      ),
+    );
   }
 }

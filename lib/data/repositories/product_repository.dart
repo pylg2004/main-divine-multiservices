@@ -34,6 +34,7 @@ class ProductRepository {
     required String unit,
     double stock = 0,
     String? color,
+    bool discountEligible = true,
   }) async {
     final product = ProductModel(
       id: _uuid.v4(),
@@ -44,6 +45,7 @@ class ProductRepository {
       stock: stock,
       color: color?.trim(),
       createdAt: DateTime.now(),
+      discountEligible: discountEligible,
     );
     await HiveDatasource.products.put(product.id, product);
     unawaited(_pushToFirestore(product));
@@ -59,6 +61,7 @@ class ProductRepository {
     double? stock,
     String? color,
     bool? active,
+    bool? discountEligible,
   }) async {
     if (name != null) product.name = name.trim();
     if (category != null) product.category = category;
@@ -67,6 +70,7 @@ class ProductRepository {
     if (stock != null) product.stock = stock;
     if (color != null) product.color = color.trim();
     if (active != null) product.active = active;
+    if (discountEligible != null) product.discountEligible = discountEligible;
     await product.save();
     unawaited(_pushToFirestore(product));
   }
@@ -105,6 +109,7 @@ class ProductRepository {
       'color': product.color,
       'active': product.active,
       'createdAt': product.createdAt,
+      'discountEligible': product.discountEligible,
     });
   }
 
@@ -122,6 +127,7 @@ class ProductRepository {
       color: data['color'] as String?,
       active: data['active'] as bool? ?? true,
       createdAt: data['createdAt'] as DateTime? ?? DateTime.now(),
+      discountEligible: data['discountEligible'] as bool? ?? true,
     );
   }
 }

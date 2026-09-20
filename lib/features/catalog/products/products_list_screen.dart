@@ -28,6 +28,8 @@ String productCategoryLabel(ProductCategory c) {
       return 'Tissu';
     case ProductCategory.livre:
       return 'Livre';
+    case ProductCategory.boisson:
+      return 'Boisson';
   }
 }
 
@@ -114,7 +116,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                     padding: const EdgeInsets.fromLTRB(AppSizes.md, 0, AppSizes.md, AppSizes.md),
                     gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                       maxCrossAxisExtent: 260,
-                      childAspectRatio: 1.6,
+                      mainAxisExtent: 210,
                       crossAxisSpacing: AppSizes.sm,
                       mainAxisSpacing: AppSizes.sm,
                     ),

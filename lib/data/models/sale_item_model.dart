@@ -25,6 +25,11 @@ class SaleItemModel {
   double qty;
   @HiveField(8)
   double unitPrice;
+  /// Copié depuis `ProductModel.discountEligible` au moment de la vente
+  /// (toujours `true` pour les services beauté/impression, qui n'ont pas
+  /// ce réglage).
+  @HiveField(9)
+  bool discountEligible;
 
   SaleItemModel({
     required this.id,
@@ -36,9 +41,10 @@ class SaleItemModel {
     this.color,
     required this.qty,
     required this.unitPrice,
+    this.discountEligible = true,
   });
 
-  bool get hasBulkDiscount => Pricing.appliesBulkDiscount(qty);
+  bool get hasBulkDiscount => discountEligible && Pricing.appliesBulkDiscount(qty);
 
-  double get sum => Pricing.lineTotal(qty, unitPrice);
+  double get sum => Pricing.lineTotal(qty, unitPrice, eligible: discountEligible);
 }

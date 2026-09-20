@@ -57,7 +57,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Image.asset('assets/icon/logo.png', height: 96, fit: BoxFit.contain),
+                  Image.asset(AppStrings.logoAssetPath, height: 96, fit: BoxFit.contain),
                   const SizedBox(height: AppSizes.md),
                   Text(
                     'Bienvenue',

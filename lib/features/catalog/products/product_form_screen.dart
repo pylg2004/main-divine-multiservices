@@ -33,6 +33,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _colorCtrl = TextEditingController();
   ProductCategory _category = ProductCategory.papeterie;
   bool _active = true;
+  bool _discountEligible = true;
   bool _loaded = false;
   int _auneWhole = 0;
   int _auneQuarters = 0;
@@ -53,6 +54,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         _colorCtrl.text = product.color ?? '';
         _category = product.category;
         _active = product.active;
+        _discountEligible = product.discountEligible;
         _setAuneFromStock(product.stock);
       }
     }
@@ -110,6 +112,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         stock: stock,
         color: _colorCtrl.text,
         active: _active,
+        discountEligible: _discountEligible,
       );
     } else {
       await repo.create(
@@ -119,6 +122,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         unit: unit,
         stock: stock,
         color: _colorCtrl.text,
+        discountEligible: _discountEligible,
       );
     }
     ref.read(dataRevisionProvider.notifier).state++;
@@ -209,6 +213,13 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                     subtitle: const Text('Visible dans le catalogue de la caisse'),
                     value: _active,
                     onChanged: (v) => setState(() => _active = v),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  SwitchListTile(
+                    title: const Text('Remise quantité'),
+                    subtitle: const Text('10% de remise automatique dès 3 unités achetées'),
+                    value: _discountEligible,
+                    onChanged: (v) => setState(() => _discountEligible = v),
                     contentPadding: EdgeInsets.zero,
                   ),
                   const SizedBox(height: AppSizes.md),

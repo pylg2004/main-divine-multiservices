@@ -7,8 +7,9 @@ import '../../core/utils/validators.dart';
 import '../../data/models/client_model.dart';
 
 /// Recherche ou création rapide d'un client — utilisé par la caisse et par
-/// la gestion des clients. Retourne `null` si l'utilisateur ferme sans
-/// sélectionner (vente à "Client anonyme").
+/// la gestion des clients. Un client est obligatoire pour encaisser (plus
+/// de vente anonyme) : retourne `null` seulement si l'utilisateur ferme la
+/// feuille sans choisir, auquel cas le bouton "Encaisser" reste désactivé.
 Future<ClientModel?> showClientPicker(BuildContext context, WidgetRef ref) {
   return showModalBottomSheet<ClientModel>(
     context: context,
@@ -86,11 +87,6 @@ class _ClientPickerSheetState extends ConsumerState<_ClientPickerSheet> {
                     child: ListView(
                       controller: scrollController,
                       children: [
-                        ListTile(
-                          leading: const Icon(Icons.person_off_outlined),
-                          title: const Text('Client anonyme'),
-                          onTap: () => Navigator.of(context).pop(),
-                        ),
                         for (final c in results)
                           ListTile(
                             leading: const CircleAvatar(child: Icon(Icons.person)),

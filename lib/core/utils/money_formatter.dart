@@ -8,8 +8,14 @@ class MoneyFormatter {
 
   static final NumberFormat _format = NumberFormat.decimalPattern('fr');
 
+  /// `NumberFormat` en locale 'fr' sépare les milliers avec une espace fine
+  /// insécable (U+202F) — invisible à l'écran mais que l'imprimante ESC/POS
+  /// ne sait pas encoder ("Contains invalid characters"). On la remplace
+  /// par une espace normale pour rester affichable ET imprimable.
+  static String _sanitize(String s) => s.replaceAll(' ', ' ').replaceAll(' ', ' ');
+
   static String format(num amount, {String symbol = 'G'}) {
-    return '${_format.format(amount)} $symbol';
+    return _sanitize('${_format.format(amount)} $symbol');
   }
 
   static String formatCompact(num amount, {String symbol = 'G'}) {
@@ -18,6 +24,6 @@ class MoneyFormatter {
       symbol: '$symbol ',
       decimalDigits: 1,
     );
-    return compact.format(amount);
+    return _sanitize(compact.format(amount));
   }
 }

@@ -154,7 +154,7 @@ class SaleDetailScreen extends ConsumerWidget {
                       '${QtyFormatter.format(item.qty, fractional: QtyFormatter.isFractionalUnit(item.unit))}'
                       '${QtyFormatter.isFractionalUnit(item.unit) ? ' ${item.unit}' : ''}'
                       ' × ${MoneyFormatter.format(item.unitPrice)}'
-                      '${item.hasBulkDiscount ? ' · -10% (quantité > 3)' : ''}',
+                      '${item.hasBulkDiscount ? ' · -10% (quantité ≥ 3)' : ''}',
                       style: item.hasBulkDiscount
                           ? const TextStyle(color: Colors.green, fontWeight: FontWeight.w600)
                           : null,

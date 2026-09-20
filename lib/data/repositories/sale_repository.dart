@@ -162,6 +162,7 @@ class SaleRepository {
         'color': item.color,
         'qty': item.qty,
         'unitPrice': item.unitPrice,
+        'discountEligible': item.discountEligible,
       };
 
   SaleItemModel _itemFromMap(Map<String, dynamic> map) => SaleItemModel(
@@ -177,5 +178,6 @@ class SaleRepository {
         color: map['color'] as String?,
         qty: (map['qty'] as num?)?.toDouble() ?? 0,
         unitPrice: (map['unitPrice'] as num?)?.toDouble() ?? 0,
+        discountEligible: map['discountEligible'] as bool? ?? true,
       );
 }

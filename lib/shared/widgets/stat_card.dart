@@ -76,6 +76,7 @@ class StatCard extends StatelessWidget {
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
           ),
+          const SizedBox(height: 20),
         ],
       ),
     );

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../core/constants/app_sizes.dart';
+import '../../core/constants/app_strings.dart';
 import '../../core/providers.dart';
 import '../../core/services/toast_service.dart';
 import '../../data/datasources/local/hive_datasource.dart';
@@ -23,7 +23,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _phoneCtrl;
   late final TextEditingController _addressCtrl;
   late String _currencyCode;
-  String? _logoPath;
 
   @override
   void initState() {
@@ -34,7 +33,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _phoneCtrl = TextEditingController(text: company.phone ?? '');
     _addressCtrl = TextEditingController(text: company.address ?? '');
     _currencyCode = company.currencyCode;
-    _logoPath = company.logoPath;
   }
 
   @override
@@ -46,16 +44,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.dispose();
   }
 
-  Future<void> _pickLogo() async {
-    try {
-      final picker = ImagePicker();
-      final file = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512);
-      if (file != null) setState(() => _logoPath = file.path);
-    } catch (_) {
-      ToastService.error("Sélection d'image impossible sur cette plateforme");
-    }
-  }
-
   Future<void> _save() async {
     await ref.read(settingsRepositoryProvider).saveCompany(CompanySettingsModel(
           name: _nameCtrl.text.trim(),
@@ -64,7 +52,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           address: _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
           currencyCode: _currencyCode,
           currencySymbol: _currencyCode == 'USD' ? '\$' : 'G',
-          logoPath: _logoPath,
+          logoPath: AppStrings.logoAssetPath,
           setupComplete: true,
         ));
     ToastService.success('Paramètres enregistrés');
@@ -121,10 +109,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onChanged: (v) => setState(() => _currencyCode = v ?? 'HTG'),
                 ),
                 const SizedBox(height: AppSizes.sm),
-                OutlinedButton.icon(
-                  onPressed: _pickLogo,
-                  icon: const Icon(Icons.image_outlined),
-                  label: Text(_logoPath == null ? 'Logo' : 'Logo sélectionné'),
+                Row(
+                  children: [
+                    Image.asset(AppStrings.logoAssetPath, width: 40, height: 40),
+                    const SizedBox(width: AppSizes.sm),
+                    const Expanded(
+                      child: Text(
+                        'Logo de l\'entreprise (déjà configuré)',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: AppSizes.md),
                 FilledButton(onPressed: _save, child: const Text('Enregistrer')),

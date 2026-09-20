@@ -142,6 +142,8 @@ class ProductCategoryAdapter extends TypeAdapter<ProductCategory> {
         return ProductCategory.tissu;
       case 2:
         return ProductCategory.livre;
+      case 3:
+        return ProductCategory.boisson;
       default:
         return ProductCategory.papeterie;
     }
@@ -158,6 +160,9 @@ class ProductCategoryAdapter extends TypeAdapter<ProductCategory> {
         break;
       case ProductCategory.livre:
         writer.writeByte(2);
+        break;
+      case ProductCategory.boisson:
+        writer.writeByte(3);
         break;
     }
   }

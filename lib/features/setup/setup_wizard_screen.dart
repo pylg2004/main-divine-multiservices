@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../core/constants/app_sizes.dart';
 import '../../core/constants/app_strings.dart';
@@ -33,7 +32,6 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
   final _addressCtrl = TextEditingController();
   String _currencyCode = 'HTG';
   String _currencySymbol = 'G';
-  String? _logoPath;
 
   // Étape 2
   final _adminNameCtrl = TextEditingController();
@@ -65,16 +63,6 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
     _printerAddressCtrl.dispose();
     _printerPortCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickLogo() async {
-    try {
-      final picker = ImagePicker();
-      final file = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512);
-      if (file != null) setState(() => _logoPath = file.path);
-    } catch (_) {
-      ToastService.error("Sélection d'image impossible sur cette plateforme");
-    }
   }
 
   void _next() {
@@ -115,7 +103,7 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
         address: _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
         currencyCode: _currencyCode,
         currencySymbol: _currencySymbol,
-        logoPath: _logoPath,
+        logoPath: AppStrings.logoAssetPath,
         setupComplete: true,
       ));
 
@@ -248,10 +236,17 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
             },
           ),
           const SizedBox(height: AppSizes.sm),
-          OutlinedButton.icon(
-            onPressed: _pickLogo,
-            icon: const Icon(Icons.image_outlined),
-            label: Text(_logoPath == null ? 'Logo (optionnel)' : 'Logo sélectionné'),
+          Row(
+            children: [
+              Image.asset(AppStrings.logoAssetPath, width: 40, height: 40),
+              const SizedBox(width: AppSizes.sm),
+              const Expanded(
+                child: Text(
+                  'Logo de l\'entreprise (déjà configuré)',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ),
+            ],
           ),
         ],
       ),

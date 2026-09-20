@@ -13,6 +13,7 @@ class CartItem {
   final String? color;
   final double unitPrice;
   final double qty;
+  final bool discountEligible;
 
   const CartItem({
     required this.referenceId,
@@ -23,11 +24,12 @@ class CartItem {
     this.color,
     required this.unitPrice,
     this.qty = 1,
+    this.discountEligible = true,
   });
 
-  bool get hasBulkDiscount => Pricing.appliesBulkDiscount(qty);
+  bool get hasBulkDiscount => discountEligible && Pricing.appliesBulkDiscount(qty);
 
-  double get sum => Pricing.lineTotal(qty, unitPrice);
+  double get sum => Pricing.lineTotal(qty, unitPrice, eligible: discountEligible);
 
   CartItem copyWith({double? qty}) => CartItem(
         referenceId: referenceId,
@@ -38,6 +40,7 @@ class CartItem {
         color: color,
         unitPrice: unitPrice,
         qty: qty ?? this.qty,
+        discountEligible: discountEligible,
       );
 }
 
@@ -81,4 +84,3 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
 final cartProvider = StateNotifierProvider<CartNotifier, List<CartItem>>((ref) => CartNotifier());
 
 final selectedClientProvider = StateProvider<ClientModel?>((ref) => null);
-final discountProvider = StateProvider<double>((ref) => 0);

@@ -118,7 +118,7 @@ class _PrintServicesListScreenState extends ConsumerState<PrintServicesListScree
                     padding: const EdgeInsets.fromLTRB(AppSizes.md, 0, AppSizes.md, AppSizes.md),
                     gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                       maxCrossAxisExtent: 260,
-                      childAspectRatio: 1.6,
+                      mainAxisExtent: 210,
                       crossAxisSpacing: AppSizes.sm,
                       mainAxisSpacing: AppSizes.sm,
                     ),
