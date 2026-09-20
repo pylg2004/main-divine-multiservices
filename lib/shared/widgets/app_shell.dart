@@ -18,6 +18,15 @@ bool _matchesRoute(String location, String route) {
   return location == route || location.startsWith('$route/');
 }
 
+/// Initiales (1 ou 2 lettres) utilisées dans l'avatar rond de la barre
+/// d'app — ex. "Admin Test" -> "AT", "Rosemé" -> "R".
+String _initials(String fullName) {
+  final parts = fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+  return (parts.first.substring(0, 1) + parts.last.substring(0, 1)).toUpperCase();
+}
+
 class _NavItem {
   final String route;
   final String label;
@@ -108,10 +117,20 @@ class AppShell extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.only(right: AppSizes.sm),
             child: Center(
-              child: Chip(
-                label: Text(session.user.name, style: const TextStyle(fontSize: 12)),
-                avatar: const Icon(Icons.person, size: 16),
-                visualDensity: VisualDensity.compact,
+              child: Tooltip(
+                message: session.user.name,
+                child: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: Colors.white.withValues(alpha: 0.25),
+                  child: Text(
+                    _initials(session.user.name),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
