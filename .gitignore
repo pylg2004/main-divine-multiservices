@@ -45,12 +45,13 @@ app.*.map.json
 /android/app/release
 
 # Firestore (voir lib/core/config/firebase_config.dart) est la base de
-# données prioritaire ; Hive reste le cache hors-ligne. Les identifiants de
-# connexion (project id / clé API / compte de synchronisation) sont fournis
-# via --dart-define-from-file=firebase.env.json plutôt que codés en dur, et
-# ce fichier ne doit jamais être commité.
+# données prioritaire ; Hive reste le cache hors-ligne. lib/firebase_options.dart
+# (généré par `flutterfire configure`) est volontairement commité : ces clés
+# ne sont pas secrètes, la sécurité vient des règles Firestore, pas de leur
+# confidentialité. Seul le compte de synchronisation optionnel (email/mot de
+# passe, si vos règles exigent une authentification) est un vrai secret et
+# reste fourni via --dart-define-from-file=firebase.env.json.
 firebase.env.json
 google-services.json
 GoogleService-Info.plist
 firebase.json
-firebase_options.dart

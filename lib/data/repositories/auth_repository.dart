@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -5,11 +6,15 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/errors/app_exception.dart';
 import '../datasources/local/hive_datasource.dart';
+import '../datasources/remote/firestore_sync_service.dart';
 import '../models/enums.dart';
 import '../models/user_model.dart';
 
 class AuthRepository {
   final _uuid = const Uuid();
+  final _sync = FirestoreSyncService.instance;
+
+  static const _collection = 'users';
 
   static String _hash(String password, String salt) {
     final bytes = utf8.encode('$salt:$password');
@@ -72,6 +77,7 @@ class AuthRepository {
       salt: salt,
     );
     await HiveDatasource.users.put(user.id, user);
+    unawaited(_pushToFirestore(user));
     return user;
   }
 
@@ -93,10 +99,12 @@ class AuthRepository {
       user.passwordHash = _hash(newPassword, salt);
     }
     await user.save();
+    unawaited(_pushToFirestore(user));
   }
 
   Future<void> deleteUser(String id) async {
     await HiveDatasource.users.delete(id);
+    unawaited(_sync.deleteDoc(_collection, id));
   }
 
   List<UserModel> allUsers() {
@@ -106,4 +114,51 @@ class AuthRepository {
   }
 
   UserModel? byId(String id) => HiveDatasource.users.get(id);
+
+  /// Récupère les comptes utilisateurs depuis Firestore (source de vérité)
+  /// et remplace le cache local. À appeler au démarrage — si Firestore
+  /// n'est pas configuré/injoignable, le cache local existant est
+  /// conservé tel quel.
+  ///
+  /// Attention : ceci synchronise `passwordHash`/`salt` vers Firestore.
+  /// Le hash est salé (SHA-256) donc pas trivialement réversible, mais la
+  /// collection `users` doit rester protégée par des règles de sécurité
+  /// Firestore restrictives (pas de lecture publique) — voir
+  /// FirebaseConfig.
+  Future<void> pullFromFirestore() async {
+    final docs = await _sync.pullCollection(_collection);
+    for (final data in docs) {
+      await HiveDatasource.users.put(data['id'] as String, _fromFirestore(data));
+    }
+  }
+
+  Future<void> _pushToFirestore(UserModel user) {
+    return _sync.pushDoc(_collection, user.id, {
+      'username': user.username,
+      'name': user.name,
+      'role': user.role.name,
+      'phone': user.phone,
+      'active': user.active,
+      'createdAt': user.createdAt,
+      'passwordHash': user.passwordHash,
+      'salt': user.salt,
+    });
+  }
+
+  UserModel _fromFirestore(Map<String, dynamic> data) {
+    return UserModel(
+      id: data['id'] as String,
+      username: data['username'] as String? ?? '',
+      name: data['name'] as String? ?? '',
+      role: UserRole.values.firstWhere(
+        (r) => r.name == data['role'],
+        orElse: () => UserRole.vendeur,
+      ),
+      phone: data['phone'] as String?,
+      active: data['active'] as bool? ?? true,
+      createdAt: data['createdAt'] as DateTime? ?? DateTime.now(),
+      passwordHash: data['passwordHash'] as String? ?? '',
+      salt: data['salt'] as String? ?? '',
+    );
+  }
 }

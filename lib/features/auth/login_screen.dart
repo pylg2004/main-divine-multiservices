@@ -57,14 +57,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Icons.storefront, size: 48, color: Theme.of(context).colorScheme.primary),
+                  Image.asset('assets/icon/logo.png', height: 96, fit: BoxFit.contain),
                   const SizedBox(height: AppSizes.md),
+                  Text(
+                    'Bienvenue',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppSizes.xs),
                   Text(
                     AppStrings.appName,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: AppSizes.xl),
+                  const SizedBox(height: AppSizes.lg),
+                  Text(
+                    'Connectez-vous !',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppSizes.lg),
                   if (_error != null) ...[
                     Container(
                       padding: const EdgeInsets.all(AppSizes.sm),

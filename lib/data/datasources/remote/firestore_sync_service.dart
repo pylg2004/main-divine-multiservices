@@ -1,7 +1,10 @@
-import 'package:firedart/firedart.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/config/firebase_config.dart';
+import '../../../firebase_options.dart';
 
 /// Passerelle générique vers Firestore, utilisée par les repositories comme
 /// base de données prioritaire (voir [FirebaseConfig]).
@@ -18,21 +21,22 @@ class FirestoreSyncService {
 
   bool _ready = false;
 
-  /// true si un projet Firebase est configuré ET que l'initialisation a
-  /// réussi (connexion réseau/identifiants valides au démarrage).
+  /// true si Firebase a pu être initialisé (config valide, réseau OK au
+  /// démarrage).
   bool get enabled => _ready;
 
   Future<void> init() async {
-    if (!FirebaseConfig.isConfigured) return;
     try {
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      // Persistance hors-ligne : Firestore garde un cache local et
+      // resynchronise automatiquement au retour du réseau.
+      FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
       if (FirebaseConfig.hasAuth) {
-        FirebaseAuth.initialize(FirebaseConfig.apiKey, VolatileStore());
-        await FirebaseAuth.instance.signIn(
-          FirebaseConfig.syncEmail,
-          FirebaseConfig.syncPassword,
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: FirebaseConfig.syncEmail,
+          password: FirebaseConfig.syncPassword,
         );
       }
-      Firestore.initialize(FirebaseConfig.projectId);
       _ready = true;
     } catch (e) {
       debugPrint('[FirestoreSyncService] Initialisation impossible: $e');
@@ -43,7 +47,7 @@ class FirestoreSyncService {
   Future<void> pushDoc(String collection, String id, Map<String, dynamic> data) async {
     if (!_ready) return;
     try {
-      await Firestore.instance.collection(collection).document(id).set(data);
+      await FirebaseFirestore.instance.collection(collection).doc(id).set(_encode(data));
     } catch (e) {
       debugPrint('[FirestoreSyncService] Échec envoi $collection/$id: $e');
     }
@@ -52,9 +56,28 @@ class FirestoreSyncService {
   Future<void> deleteDoc(String collection, String id) async {
     if (!_ready) return;
     try {
-      await Firestore.instance.collection(collection).document(id).delete();
+      await FirebaseFirestore.instance.collection(collection).doc(id).delete();
     } catch (e) {
       debugPrint('[FirestoreSyncService] Échec suppression $collection/$id: $e');
+    }
+  }
+
+  /// Récupère un document unique. Retourne `null` si Firestore est
+  /// désactivé, injoignable, ou si le document n'existe pas.
+  Future<Map<String, dynamic>?> pullDoc(
+    String collection,
+    String id, {
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    if (!_ready) return null;
+    try {
+      final doc = await FirebaseFirestore.instance.collection(collection).doc(id).get().timeout(timeout);
+      if (!doc.exists) return null;
+      final data = doc.data();
+      return data == null ? null : _decode(data);
+    } catch (e) {
+      debugPrint('[FirestoreSyncService] Échec lecture $collection/$id: $e');
+      return null;
     }
   }
 
@@ -68,22 +91,30 @@ class FirestoreSyncService {
   }) async {
     if (!_ready) return [];
     try {
-      final results = <Map<String, dynamic>>[];
-      var token = '';
-      do {
-        final page = await Firestore.instance
-            .collection(collection)
-            .get(nextPageToken: token)
-            .timeout(timeout);
-        for (final doc in page) {
-          results.add({...doc.map, 'id': doc.id});
-        }
-        token = page.nextPageToken;
-      } while (token.isNotEmpty);
-      return results;
+      final snapshot = await FirebaseFirestore.instance.collection(collection).get().timeout(timeout);
+      return [
+        for (final doc in snapshot.docs) {..._decode(doc.data()), 'id': doc.id},
+      ];
     } catch (e) {
       debugPrint('[FirestoreSyncService] Échec lecture $collection: $e');
       return [];
     }
+  }
+
+  /// Convertit les [DateTime] en [Timestamp] Firestore avant envoi (le SDK
+  /// n'accepte pas les DateTime bruts).
+  Map<String, dynamic> _encode(Map<String, dynamic> data) {
+    return data.map((key, value) {
+      if (value is DateTime) return MapEntry(key, Timestamp.fromDate(value));
+      return MapEntry(key, value);
+    });
+  }
+
+  /// Convertit les [Timestamp] Firestore en [DateTime] à la lecture.
+  Map<String, dynamic> _decode(Map<String, dynamic> data) {
+    return data.map((key, value) {
+      if (value is Timestamp) return MapEntry(key, value.toDate());
+      return MapEntry(key, value);
+    });
   }
 }
