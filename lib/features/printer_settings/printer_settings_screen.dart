@@ -95,17 +95,23 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
                     DropdownMenuItem(value: null, child: Text('Non configurée')),
                     DropdownMenuItem(value: PrinterConnectionType.network, child: Text('Réseau (WiFi/Ethernet)')),
                     DropdownMenuItem(value: PrinterConnectionType.usb, child: Text('USB')),
+                    DropdownMenuItem(
+                      value: PrinterConnectionType.sunmiIntegrated,
+                      child: Text('Imprimante intégrée (terminal Sunmi)'),
+                    ),
                   ],
                   onChanged: (v) => setState(() => _type = v),
                 ),
                 if (_type != null) ...[
-                  const SizedBox(height: AppSizes.sm),
-                  TextField(
-                    controller: _addressCtrl,
-                    decoration: InputDecoration(
-                      labelText: _type == PrinterConnectionType.network ? 'Adresse IP' : 'Chemin USB',
+                  if (_type != PrinterConnectionType.sunmiIntegrated) ...[
+                    const SizedBox(height: AppSizes.sm),
+                    TextField(
+                      controller: _addressCtrl,
+                      decoration: InputDecoration(
+                        labelText: _type == PrinterConnectionType.network ? 'Adresse IP' : 'Chemin USB',
+                      ),
                     ),
-                  ),
+                  ],
                   if (_type == PrinterConnectionType.network) ...[
                     const SizedBox(height: AppSizes.sm),
                     TextField(
@@ -121,6 +127,15 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
                         "L'impression USB directe n'est pas encore disponible dans cette version. "
                         'Utilisez une connexion Réseau en attendant.',
                         style: TextStyle(color: Colors.orange, fontSize: 12),
+                      ),
+                    ),
+                  if (_type == PrinterConnectionType.sunmiIntegrated)
+                    const Padding(
+                      padding: EdgeInsets.only(top: AppSizes.xs),
+                      child: Text(
+                        'Rien à saisir : les reçus sont envoyés directement à l\'imprimante '
+                        "intégrée de ce terminal. Fonctionne uniquement sur un appareil Sunmi.",
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                     ),
                   const SizedBox(height: AppSizes.sm),

@@ -63,6 +63,15 @@ const _navByWorkstation = <Workstation, List<_NavItem>>{
     _NavItem('/reports', 'Mon rapport', Icons.bar_chart_outlined, Permission.reportsViewOwn),
     _NavItem('/profile', 'Profil', Icons.person_outline),
   ],
+  Workstation.boisson: [
+    _NavItem('/dashboard/boisson', 'Tableau de bord', Icons.dashboard_outlined),
+    _NavItem('/sale', 'Caisse', Icons.point_of_sale_outlined),
+    _NavItem('/catalog/products', 'Boissons', Icons.local_drink_outlined),
+    _NavItem('/clients', 'Clients', Icons.people_outline),
+    _NavItem('/sales', 'Ventes', Icons.receipt_long_outlined),
+    _NavItem('/reports', 'Mon rapport', Icons.bar_chart_outlined, Permission.reportsViewOwn),
+    _NavItem('/profile', 'Profil', Icons.person_outline),
+  ],
   Workstation.general: [
     _NavItem('/dashboard/general', 'Tableau de bord', Icons.dashboard_outlined),
     _NavItem('/sale', 'Caisse', Icons.point_of_sale_outlined),

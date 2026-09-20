@@ -87,7 +87,12 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
         password: _passwordCtrl.text,
       );
 
-      if (_printerType != null && _printerAddressCtrl.text.trim().isNotEmpty) {
+      if (_printerType == PrinterConnectionType.sunmiIntegrated) {
+        await settingsRepo.savePrinter(PrinterConfigModel(
+          connectionType: _printerType,
+          paperWidth: _paperWidth,
+        ));
+      } else if (_printerType != null && _printerAddressCtrl.text.trim().isNotEmpty) {
         await settingsRepo.savePrinter(PrinterConfigModel(
           connectionType: _printerType,
           address: _printerAddressCtrl.text.trim(),
@@ -316,17 +321,23 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
             DropdownMenuItem(value: null, child: Text('Configurer plus tard')),
             DropdownMenuItem(value: PrinterConnectionType.network, child: Text('Réseau (WiFi/Ethernet)')),
             DropdownMenuItem(value: PrinterConnectionType.usb, child: Text('USB')),
+            DropdownMenuItem(
+              value: PrinterConnectionType.sunmiIntegrated,
+              child: Text('Imprimante intégrée (terminal Sunmi)'),
+            ),
           ],
           onChanged: (v) => setState(() => _printerType = v),
         ),
         if (_printerType != null) ...[
-          const SizedBox(height: AppSizes.sm),
-          TextFormField(
-            controller: _printerAddressCtrl,
-            decoration: InputDecoration(
-              labelText: _printerType == PrinterConnectionType.network ? 'Adresse IP' : 'Chemin USB',
+          if (_printerType != PrinterConnectionType.sunmiIntegrated) ...[
+            const SizedBox(height: AppSizes.sm),
+            TextFormField(
+              controller: _printerAddressCtrl,
+              decoration: InputDecoration(
+                labelText: _printerType == PrinterConnectionType.network ? 'Adresse IP' : 'Chemin USB',
+              ),
             ),
-          ),
+          ],
           if (_printerType == PrinterConnectionType.network) ...[
             const SizedBox(height: AppSizes.sm),
             TextFormField(
@@ -360,7 +371,7 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
         _SummaryRow('Super Admin', _adminNameCtrl.text),
         _SummaryRow("Nom d'utilisateur", _adminUsernameCtrl.text),
         _SummaryRow('Devise', _currencyCode),
-        _SummaryRow('Imprimante', _printerType == null ? 'À configurer plus tard' : _printerType!.name),
+        _SummaryRow('Imprimante', _printerTypeLabel(_printerType)),
         const SizedBox(height: AppSizes.md),
         Text(
           "Après cette étape, seul le Super Admin existera. Il pourra créer tous les autres "

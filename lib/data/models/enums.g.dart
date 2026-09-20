@@ -29,6 +29,8 @@ class UserRoleAdapter extends TypeAdapter<UserRole> {
         return UserRole.imprimeur;
       case 7:
         return UserRole.vendeurGeneral;
+      case 8:
+        return UserRole.vendeurBoisson;
       default:
         return UserRole.superAdmin;
     }
@@ -61,6 +63,9 @@ class UserRoleAdapter extends TypeAdapter<UserRole> {
       case UserRole.vendeurGeneral:
         writer.writeByte(7);
         break;
+      case UserRole.vendeurBoisson:
+        writer.writeByte(8);
+        break;
     }
   }
 
@@ -92,6 +97,8 @@ class WorkstationAdapter extends TypeAdapter<Workstation> {
         return Workstation.impression;
       case 4:
         return Workstation.general;
+      case 5:
+        return Workstation.boisson;
       default:
         return Workstation.pos;
     }
@@ -114,6 +121,9 @@ class WorkstationAdapter extends TypeAdapter<Workstation> {
         break;
       case Workstation.general:
         writer.writeByte(4);
+        break;
+      case Workstation.boisson:
+        writer.writeByte(5);
         break;
     }
   }
@@ -434,6 +444,8 @@ class PrinterConnectionTypeAdapter extends TypeAdapter<PrinterConnectionType> {
         return PrinterConnectionType.network;
       case 1:
         return PrinterConnectionType.usb;
+      case 2:
+        return PrinterConnectionType.sunmiIntegrated;
       default:
         return PrinterConnectionType.network;
     }
@@ -447,6 +459,9 @@ class PrinterConnectionTypeAdapter extends TypeAdapter<PrinterConnectionType> {
         break;
       case PrinterConnectionType.usb:
         writer.writeByte(1);
+        break;
+      case PrinterConnectionType.sunmiIntegrated:
+        writer.writeByte(2);
         break;
     }
   }

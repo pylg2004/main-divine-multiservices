@@ -71,6 +71,21 @@ class _SaleScreenState extends ConsumerState<SaleScreen> {
         ));
       }
     }
+    if (workstation == Workstation.boisson) {
+      for (final p
+          in ref.watch(productsListProvider).where((p) => p.active && p.category == ProductCategory.boisson)) {
+        entries.add(_CatalogEntry(
+          id: p.id,
+          type: SaleItemType.product,
+          title: p.name,
+          categoryLabel: productCategoryLabel(p.category),
+          unit: p.unit,
+          color: p.color,
+          price: p.price,
+          discountEligible: p.discountEligible,
+        ));
+      }
+    }
     if (workstation == Workstation.beauty || workstation == Workstation.admin || workstation == Workstation.general) {
       for (final s in ref.watch(beautyServicesListProvider).where((s) => s.active)) {
         entries.add(_CatalogEntry(

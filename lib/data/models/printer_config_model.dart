@@ -26,5 +26,7 @@ class PrinterConfigModel extends HiveObject {
     this.paperWidth = PrinterPaperWidth.mm58,
   });
 
-  bool get isConfigured => connectionType != null && address != null;
+  bool get isConfigured =>
+      connectionType == PrinterConnectionType.sunmiIntegrated ||
+      (connectionType != null && address != null);
 }

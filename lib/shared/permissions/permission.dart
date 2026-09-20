@@ -4,6 +4,7 @@ enum Permission {
   dashboardViewAdmin,
   dashboardViewImpression,
   dashboardViewGeneral,
+  dashboardViewBoisson,
   productsView,
   productsCreateEdit,
   productsDelete,

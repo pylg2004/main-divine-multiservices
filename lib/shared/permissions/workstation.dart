@@ -20,6 +20,8 @@ extension WorkstationExtension on UserRole {
         return Workstation.impression;
       case UserRole.vendeurGeneral:
         return Workstation.general;
+      case UserRole.vendeurBoisson:
+        return Workstation.boisson;
     }
   }
 }
@@ -37,6 +39,8 @@ extension WorkstationInfo on Workstation {
         return 'Impression';
       case Workstation.general:
         return 'Vente Générale';
+      case Workstation.boisson:
+        return 'Boissons';
     }
   }
 
@@ -52,6 +56,8 @@ extension WorkstationInfo on Workstation {
         return const Color(0xFFE08A2E);
       case Workstation.general:
         return const Color(0xFF7C3AED);
+      case Workstation.boisson:
+        return const Color(0xFF0EA5B7);
     }
   }
 
@@ -67,6 +73,8 @@ extension WorkstationInfo on Workstation {
         return Icons.local_printshop_outlined;
       case Workstation.general:
         return Icons.shopping_bag_outlined;
+      case Workstation.boisson:
+        return Icons.local_drink_outlined;
     }
   }
 
@@ -82,6 +90,8 @@ extension WorkstationInfo on Workstation {
         return '/dashboard/impression';
       case Workstation.general:
         return '/dashboard/general';
+      case Workstation.boisson:
+        return '/dashboard/boisson';
     }
   }
 }
@@ -105,6 +115,8 @@ extension UserRoleLabel on UserRole {
         return 'Imprimeur';
       case UserRole.vendeurGeneral:
         return 'Vendeur Général';
+      case UserRole.vendeurBoisson:
+        return 'Vendeur Boissons';
     }
   }
 }

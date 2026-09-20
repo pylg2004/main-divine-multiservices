@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:sunmi_printer_plus/sunmi_printer_plus.dart';
 
 import '../../data/models/client_model.dart';
 import '../../data/models/company_settings_model.dart';
@@ -21,7 +22,9 @@ import '../utils/qty_formatter.dart';
 /// (flutter_blue_plus) impose une licence commerciale payante pour tout usage
 /// par une entreprise à but lucratif — refusé pour ce projet. Réseau
 /// (WiFi/Ethernet) est donc le transport principal ; USB reste un placeholder
-/// (voir printBytes).
+/// (voir printBytes). Les terminaux tout-en-un Sunmi (imprimante intégrée,
+/// pas de réseau/USB à configurer) sont pris en charge via le SDK Sunmi
+/// (sunmi_printer_plus), qui accepte directement les mêmes octets ESC/POS.
 ///
 /// Limitation assumée : un navigateur web ne peut ouvrir ni socket TCP brut,
 /// ni connexion USB. Sur Flutter web, [printBytes] échoue donc toujours avec
@@ -310,6 +313,9 @@ class ThermalPrinterService {
           "L'impression USB directe n'est pas encore disponible dans cette version. "
           'Utilisez une connexion Réseau (WiFi/Ethernet).',
         );
+      case PrinterConnectionType.sunmiIntegrated:
+        await _printSunmi(bytes);
+        break;
     }
   }
 
@@ -330,4 +336,16 @@ class ThermalPrinterService {
     }
   }
 
+  Future<void> _printSunmi(List<int> bytes) async {
+    if (!Platform.isAndroid) {
+      throw const PrinterException(
+        "L'imprimante intégrée Sunmi n'est disponible que sur un terminal Android Sunmi.",
+      );
+    }
+    try {
+      await SunmiPrinter.printEscPos(bytes);
+    } catch (e) {
+      throw PrinterException("Impression sur l'imprimante intégrée impossible : $e");
+    }
+  }
 }

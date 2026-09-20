@@ -18,6 +18,7 @@ import '../features/catalog/print_services/print_service_form_screen.dart';
 import '../features/catalog/print_services/print_services_list_screen.dart';
 import '../features/dashboard/admin/admin_dashboard_screen.dart';
 import '../features/dashboard/beauty/beauty_dashboard_screen.dart';
+import '../features/dashboard/boisson/boisson_dashboard_screen.dart';
 import '../features/dashboard/general/general_dashboard_screen.dart';
 import '../features/dashboard/impression/impression_dashboard_screen.dart';
 import '../features/dashboard/pos/pos_dashboard_screen.dart';
@@ -44,7 +45,8 @@ const Map<String, List<Workstation>> _routeWorkstations = {
   '/dashboard/admin': [Workstation.admin],
   '/dashboard/impression': [Workstation.impression],
   '/dashboard/general': [Workstation.general],
-  '/catalog/products': [Workstation.pos, Workstation.admin, Workstation.general],
+  '/dashboard/boisson': [Workstation.boisson],
+  '/catalog/products': [Workstation.pos, Workstation.admin, Workstation.general, Workstation.boisson],
   '/catalog/beauty-services': [Workstation.beauty, Workstation.admin, Workstation.general],
   '/catalog/print-services': [Workstation.impression, Workstation.admin, Workstation.general],
   '/users': [Workstation.admin],
@@ -114,6 +116,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/dashboard/admin', builder: (context, state) => const AdminDashboardScreen()),
       GoRoute(path: '/dashboard/impression', builder: (context, state) => const ImpressionDashboardScreen()),
       GoRoute(path: '/dashboard/general', builder: (context, state) => const GeneralDashboardScreen()),
+      GoRoute(path: '/dashboard/boisson', builder: (context, state) => const BoissonDashboardScreen()),
       GoRoute(path: '/sale', builder: (context, state) => const SaleScreen()),
       GoRoute(
         path: '/catalog/products',

@@ -25,6 +25,10 @@ enum UserRole {
   /// caisse unifiée — sans les permissions de gestion de l'Administrateur.
   @HiveField(7)
   vendeurGeneral,
+  /// Vendeur dédié aux boissons uniquement (catégorie Boisson) — même
+  /// principe que Vendeur (papeterie) ou Beautician, mais pour ce rayon.
+  @HiveField(8)
+  vendeurBoisson,
 }
 
 /// Poste de travail — jamais choisi directement par l'utilisateur, toujours
@@ -41,6 +45,8 @@ enum Workstation {
   impression,
   @HiveField(4)
   general,
+  @HiveField(5)
+  boisson,
 }
 
 @HiveType(typeId: 22)
@@ -129,6 +135,11 @@ enum PrinterConnectionType {
   network,
   @HiveField(1)
   usb,
+  /// Imprimante thermique intégrée d'un terminal tout-en-un (ex: Sunmi) —
+  /// pas d'adresse à configurer, l'app parle directement au SDK du
+  /// fabricant (voir ThermalPrinterService.printBytes).
+  @HiveField(2)
+  sunmiIntegrated,
 }
 
 @HiveType(typeId: 28)

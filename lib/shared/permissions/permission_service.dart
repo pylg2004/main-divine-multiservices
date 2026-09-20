@@ -14,6 +14,7 @@ class PermissionService {
     Permission.dashboardViewAdmin,
     Permission.dashboardViewImpression,
     Permission.dashboardViewGeneral,
+    Permission.dashboardViewBoisson,
     Permission.productsView,
     Permission.productsCreateEdit,
     Permission.productsDelete,
@@ -169,6 +170,21 @@ class PermissionService {
       Permission.salesCreateProduct,
       Permission.salesCreateService,
       Permission.salesCreatePrintService,
+      Permission.salesPrint,
+      Permission.clientsView,
+      Permission.clientsCreateEdit,
+      Permission.clientsPrintCard,
+      Permission.reportsViewOwn,
+      Permission.reportsPrint,
+    },
+    // Vendeur dédié aux boissons : ne voit/vend que la catégorie Boisson du
+    // catalogue produits (filtré dans sale_screen.dart), pas de gestion du
+    // catalogue ni des utilisateurs.
+    UserRole.vendeurBoisson: {
+      Permission.dashboardViewBoisson,
+      Permission.productsView,
+      Permission.salesViewOwn,
+      Permission.salesCreateProduct,
       Permission.salesPrint,
       Permission.clientsView,
       Permission.clientsCreateEdit,
