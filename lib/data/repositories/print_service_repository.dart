@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:uuid/uuid.dart';
 
-import '../datasources/local/hive_datasource.dart';
+import '../datasources/local/memory_collection.dart';
 import '../datasources/remote/firestore_sync_service.dart';
 import '../models/enums.dart';
 import '../models/print_service_model.dart';
@@ -10,13 +10,12 @@ import '../models/print_service_model.dart';
 class PrintServiceRepository {
   final _uuid = const Uuid();
   final _sync = FirestoreSyncService.instance;
+  final _cache = MemoryCollection<PrintServiceModel>();
 
   static const _collection = 'print_services';
 
   List<PrintServiceModel> all({bool activeOnly = false}) {
-    final list = HiveDatasource.printServices.values
-        .where((s) => !activeOnly || s.active)
-        .toList();
+    final list = _cache.all.where((s) => !activeOnly || s.active).toList();
     list.sort((a, b) => a.name.compareTo(b.name));
     return list;
   }
@@ -25,7 +24,7 @@ class PrintServiceRepository {
     return all(activeOnly: true).where((s) => s.category == category).toList();
   }
 
-  PrintServiceModel? byId(String id) => HiveDatasource.printServices.get(id);
+  PrintServiceModel? byId(String id) => _cache.byId(id);
 
   Future<PrintServiceModel> create({
     required String name,
@@ -41,7 +40,7 @@ class PrintServiceRepository {
       description: description?.trim(),
       createdAt: DateTime.now(),
     );
-    await HiveDatasource.printServices.put(service.id, service);
+    _cache.put(service.id, service);
     unawaited(_pushToFirestore(service));
     return service;
   }
@@ -59,24 +58,23 @@ class PrintServiceRepository {
     if (price != null) service.price = price;
     if (description != null) service.description = description.trim();
     if (active != null) service.active = active;
-    await service.save();
     unawaited(_pushToFirestore(service));
   }
 
   Future<void> delete(String id) async {
-    await HiveDatasource.printServices.delete(id);
+    _cache.remove(id);
     unawaited(_sync.deleteDoc(_collection, id));
   }
 
-  /// Récupère les services d'impression depuis Firestore (source de
-  /// vérité) et remplace le cache local. À appeler au démarrage — si
-  /// Firestore n'est pas configuré/injoignable, le cache local existant
-  /// est conservé tel quel.
+  /// Récupère les services d'impression depuis Firestore (seule base de
+  /// données) et remplace le cache en mémoire. À appeler au démarrage/après
+  /// connexion — si Firestore est injoignable, le cache reste tel quel.
   Future<void> pullFromFirestore() async {
     final docs = await _sync.pullCollection(_collection);
-    for (final data in docs) {
-      await HiveDatasource.printServices.put(data['id'] as String, _fromFirestore(data));
-    }
+    final map = <String, PrintServiceModel>{
+      for (final data in docs) data['id'] as String: _fromFirestore(data),
+    };
+    _cache.replaceAll(map);
   }
 
   Future<void> _pushToFirestore(PrintServiceModel service) {

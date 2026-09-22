@@ -5,7 +5,6 @@ import '../../core/constants/app_sizes.dart';
 import '../../core/providers.dart';
 import '../../core/services/toast_service.dart';
 import '../../core/utils/validators.dart';
-import '../../shared/permissions/permission.dart';
 import '../../shared/permissions/workstation.dart';
 import '../../shared/widgets/app_shell.dart';
 import '../auth/session_notifier.dart';
@@ -44,16 +43,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final session = ref.read(sessionProvider)!;
-    await ref.read(authRepositoryProvider).updateUser(
-          session.user,
-          name: _nameCtrl.text,
-          phone: _phoneCtrl.text,
-          newPassword: _passwordCtrl.text.isEmpty ? null : _passwordCtrl.text,
-        );
-    ref.read(sessionProvider.notifier).refreshUser();
-    _passwordCtrl.clear();
-    _confirmPasswordCtrl.clear();
-    ToastService.success('Profil mis à jour');
+    final repo = ref.read(authRepositoryProvider);
+    try {
+      await repo.updateUser(session.user, name: _nameCtrl.text, phone: _phoneCtrl.text);
+      if (_passwordCtrl.text.isNotEmpty) {
+        await repo.updateOwnPassword(_passwordCtrl.text);
+      }
+      ref.read(sessionProvider.notifier).refreshUser();
+      _passwordCtrl.clear();
+      _confirmPasswordCtrl.clear();
+      ToastService.success('Profil mis à jour');
+    } catch (e) {
+      ToastService.error(e.toString());
+    }
   }
 
   @override
@@ -103,8 +105,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                       const SizedBox(height: AppSizes.sm),
                       TextFormField(
-                        initialValue: session.user.username,
-                        decoration: const InputDecoration(labelText: "Nom d'utilisateur"),
+                        initialValue: session.user.email,
+                        decoration: const InputDecoration(labelText: 'Email'),
                         enabled: false,
                       ),
                       const SizedBox(height: AppSizes.sm),
@@ -114,33 +116,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         keyboardType: TextInputType.phone,
                         validator: Validators.phone,
                       ),
-                      // Seul le Super Admin peut changer un mot de passe (le sien ou
-                      // celui d'un autre, via Utilisateurs) — un employé qui veut
-                      // changer le sien doit le demander au Super Admin. Ce n'est
-                      // pas juste une restriction d'IHM : ces champs sont absents
-                      // du formulaire pour tout le monde d'autre, donc _save() ne
-                      // peut jamais recevoir de newPassword venant d'eux.
-                      if (session.can(Permission.usersManage)) ...[
-                        const SizedBox(height: AppSizes.md),
-                        const Divider(),
-                        const SizedBox(height: AppSizes.sm),
-                        Text('Changer le mot de passe', style: Theme.of(context).textTheme.titleSmall),
-                        const SizedBox(height: AppSizes.sm),
-                        TextFormField(
-                          controller: _passwordCtrl,
-                          decoration: const InputDecoration(labelText: 'Nouveau mot de passe (optionnel)'),
-                          obscureText: true,
-                          validator: (v) => v == null || v.isEmpty ? null : Validators.password(v),
-                        ),
-                        const SizedBox(height: AppSizes.sm),
-                        TextFormField(
-                          controller: _confirmPasswordCtrl,
-                          decoration: const InputDecoration(labelText: 'Confirmer le mot de passe'),
-                          obscureText: true,
-                          validator: (v) =>
-                              _passwordCtrl.text.isEmpty ? null : Validators.confirmPassword(v, _passwordCtrl.text),
-                        ),
-                      ],
+                      // Chaque utilisateur peut changer son propre mot de passe (Firebase
+                      // Auth : updatePassword() ne s'applique qu'au compte actuellement
+                      // connecté, quel qu'il soit). Pour changer le mot de passe d'un
+                      // AUTRE compte, un admin utilise "Envoyer un lien de
+                      // réinitialisation" depuis Utilisateurs (le SDK client ne permet
+                      // pas de définir directement le mot de passe d'autrui).
+                      const SizedBox(height: AppSizes.md),
+                      const Divider(),
+                      const SizedBox(height: AppSizes.sm),
+                      Text('Changer le mot de passe', style: Theme.of(context).textTheme.titleSmall),
+                      const SizedBox(height: AppSizes.sm),
+                      TextFormField(
+                        controller: _passwordCtrl,
+                        decoration: const InputDecoration(labelText: 'Nouveau mot de passe (optionnel)'),
+                        obscureText: true,
+                        validator: (v) => v == null || v.isEmpty ? null : Validators.password(v),
+                      ),
+                      const SizedBox(height: AppSizes.sm),
+                      TextFormField(
+                        controller: _confirmPasswordCtrl,
+                        decoration: const InputDecoration(labelText: 'Confirmer le mot de passe'),
+                        obscureText: true,
+                        validator: (v) =>
+                            _passwordCtrl.text.isEmpty ? null : Validators.confirmPassword(v, _passwordCtrl.text),
+                      ),
                       const SizedBox(height: AppSizes.md),
                       FilledButton(onPressed: _save, child: const Text('Enregistrer')),
                     ],

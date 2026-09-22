@@ -1,89 +1,52 @@
-import 'package:hive/hive.dart';
-
-part 'enums.g.dart';
-
 /// Rôle attribué à un utilisateur. Détermine automatiquement son poste de
 /// travail via [WorkstationExtension.workstation] (shared/permissions).
-@HiveType(typeId: 20)
 enum UserRole {
-  @HiveField(0)
   superAdmin,
-  @HiveField(1)
   admin,
-  @HiveField(2)
   manager,
-  @HiveField(3)
   vendeur,
-  @HiveField(4)
   caissier,
-  @HiveField(5)
   beautician,
-  @HiveField(6)
   imprimeur,
   /// Vendeur polyvalent : vend indifféremment produits (papeterie, tissu,
   /// boissons...), services beauté et services impression depuis une
   /// caisse unifiée — sans les permissions de gestion de l'Administrateur.
-  @HiveField(7)
   vendeurGeneral,
   /// Vendeur dédié aux boissons uniquement (catégorie Boisson) — même
   /// principe que Vendeur (papeterie) ou Beautician, mais pour ce rayon.
-  @HiveField(8)
   vendeurBoisson,
 }
 
 /// Poste de travail — jamais choisi directement par l'utilisateur, toujours
 /// dérivé de son [UserRole].
-@HiveType(typeId: 21)
 enum Workstation {
-  @HiveField(0)
   pos,
-  @HiveField(1)
   beauty,
-  @HiveField(2)
   admin,
-  @HiveField(3)
   impression,
-  @HiveField(4)
   general,
-  @HiveField(5)
   boisson,
 }
 
-@HiveType(typeId: 22)
 enum ProductCategory {
-  @HiveField(0)
   papeterie,
-  @HiveField(1)
   tissu,
-  @HiveField(2)
   livre,
-  @HiveField(3)
   boisson,
 }
 
-@HiveType(typeId: 23)
 enum BeautyServiceCategory {
-  @HiveField(0)
   coiffure,
-  @HiveField(1)
   esthetique,
-  @HiveField(2)
   onglerie,
-  @HiveField(3)
   maquillage,
-  @HiveField(4)
   soins,
-  @HiveField(5)
   autre,
 }
 
-@HiveType(typeId: 24)
 enum SaleItemType {
-  @HiveField(0)
   product,
-  @HiveField(1)
   beautyService,
-  @HiveField(2)
   printService,
 }
 
@@ -91,37 +54,23 @@ enum SaleItemType {
 /// valeurs les cas mentionnés explicitement (flyers, services informatiques).
 /// [PrintServiceModel.description] reste le champ texte libre pour préciser
 /// une commande particulière.
-@HiveType(typeId: 29)
 enum PrintServiceCategory {
-  @HiveField(0)
   impression,
-  @HiveField(1)
   flyers,
-  @HiveField(2)
   cartesDeVisite,
-  @HiveField(3)
   affiches,
-  @HiveField(4)
   servicesInformatiques,
-  @HiveField(5)
   autre,
 }
 
-@HiveType(typeId: 25)
 enum SaleStatus {
-  @HiveField(0)
   complete,
-  @HiveField(1)
   annulee,
 }
 
-@HiveType(typeId: 26)
 enum PaymentMethod {
-  @HiveField(0)
   especes,
-  @HiveField(1)
   carte,
-  @HiveField(2)
   mobile,
 }
 
@@ -129,23 +78,32 @@ enum PaymentMethod {
 /// (flutter_blue_plus) impose une licence commerciale payante pour tout
 /// usage par une entreprise à but lucratif, ce que l'utilisateur a refusé.
 /// Réseau (WiFi/Ethernet) est donc le transport recommandé.
-@HiveType(typeId: 27)
 enum PrinterConnectionType {
-  @HiveField(0)
   network,
-  @HiveField(1)
+  /// Imprimante USB générique (câble, ou imprimante intégrée d'un terminal
+  /// tout-en-un dont le module thermique est câblé en USB interne — le cas
+  /// de la plupart des terminaux Android génériques). Fonctionne avec toute
+  /// imprimante ESC/POS classe USB Printer (0x07) ou puce série courante
+  /// (FTDI/CP210x/CH34x...), sans SDK propriétaire — voir
+  /// ThermalPrinterService._printUsb. Un terminal Sunmi doit utiliser
+  /// [sunmiIntegrated] à la place (son imprimante n'est pas exposée en USB).
   usb,
-  /// Imprimante thermique intégrée d'un terminal tout-en-un (ex: Sunmi) —
-  /// pas d'adresse à configurer, l'app parle directement au SDK du
-  /// fabricant (voir ThermalPrinterService.printBytes).
-  @HiveField(2)
+  /// Imprimante thermique intégrée d'un terminal tout-en-un Sunmi
+  /// spécifiquement — pas d'adresse à configurer, l'app parle directement
+  /// au SDK Sunmi (voir ThermalPrinterService.printBytes).
   sunmiIntegrated,
+  /// Imprimante intégrée de terminaux Android bas de gamme sans SDK ni
+  /// service AIDL (constaté sur MobiWire MobiPrint 3+ / "Mobilot MP3+") :
+  /// le pilote noyau du terminal accepte un fichier de commande texte
+  /// déposé sur le disque puis un signal écrit dans /proc/printer — pas
+  /// d'ESC/POS, texte brut uniquement (voir
+  /// ThermalPrinterService._printMobiPrintText et
+  /// android/.../MobiPrintChannel.kt). Détectable automatiquement (sonde
+  /// /proc/printer) — voir ThermalPrinterService.isMobiPrintAvailable.
+  mobiPrintIntegrated,
 }
 
-@HiveType(typeId: 28)
 enum PrinterPaperWidth {
-  @HiveField(0)
   mm58,
-  @HiveField(1)
   mm80,
 }

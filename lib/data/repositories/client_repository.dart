@@ -2,18 +2,19 @@ import 'dart:async';
 
 import 'package:uuid/uuid.dart';
 
-import '../datasources/local/hive_datasource.dart';
+import '../datasources/local/memory_collection.dart';
 import '../datasources/remote/firestore_sync_service.dart';
 import '../models/client_model.dart';
 
 class ClientRepository {
   final _uuid = const Uuid();
   final _sync = FirestoreSyncService.instance;
+  final _cache = MemoryCollection<ClientModel>();
 
   static const _collection = 'clients';
 
   List<ClientModel> all() {
-    final list = HiveDatasource.clients.values.toList();
+    final list = _cache.all;
     list.sort((a, b) => a.fullName.compareTo(b.fullName));
     return list;
   }
@@ -27,7 +28,7 @@ class ClientRepository {
         .toList();
   }
 
-  ClientModel? byId(String id) => HiveDatasource.clients.get(id);
+  ClientModel? byId(String id) => _cache.byId(id);
 
   Future<ClientModel> create({
     required String fullName,
@@ -45,7 +46,7 @@ class ClientRepository {
       notes: notes?.trim(),
       createdAt: DateTime.now(),
     );
-    await HiveDatasource.clients.put(client.id, client);
+    _cache.put(client.id, client);
     unawaited(_pushToFirestore(client));
     return client;
   }
@@ -63,7 +64,6 @@ class ClientRepository {
     if (email != null) client.email = email.trim();
     if (birthDate != null) client.birthDate = birthDate;
     if (notes != null) client.notes = notes.trim();
-    await client.save();
     unawaited(_pushToFirestore(client));
   }
 
@@ -77,23 +77,33 @@ class ClientRepository {
     client.totalSpent += amountSpent;
     client.loyaltyPoints += pointsEarned;
     client.lastVisit = DateTime.now();
-    await client.save();
     unawaited(_pushToFirestore(client));
   }
 
   Future<void> delete(String id) async {
-    await HiveDatasource.clients.delete(id);
+    _cache.remove(id);
     unawaited(_sync.deleteDoc(_collection, id));
   }
 
-  /// Récupère les clients depuis Firestore (source de vérité) et remplace
-  /// le cache local. À appeler au démarrage — si Firestore n'est pas
-  /// configuré/injoignable, le cache local existant est conservé tel quel.
+  /// Supprime tous les clients (Firestore + cache) — utilisé par la
+  /// réinitialisation des données depuis Paramètres.
+  Future<void> deleteAll() async {
+    final ids = _cache.all.map((c) => c.id).toList();
+    for (final id in ids) {
+      await _sync.deleteDoc(_collection, id);
+    }
+    _cache.replaceAll({});
+  }
+
+  /// Récupère les clients depuis Firestore (seule base de données) et
+  /// remplace le cache en mémoire. À appeler au démarrage/après connexion —
+  /// si Firestore est injoignable, le cache reste tel quel.
   Future<void> pullFromFirestore() async {
     final docs = await _sync.pullCollection(_collection);
-    for (final data in docs) {
-      await HiveDatasource.clients.put(data['id'] as String, _fromFirestore(data));
-    }
+    final map = <String, ClientModel>{
+      for (final data in docs) data['id'] as String: _fromFirestore(data),
+    };
+    _cache.replaceAll(map);
   }
 
   Future<void> _pushToFirestore(ClientModel client) {

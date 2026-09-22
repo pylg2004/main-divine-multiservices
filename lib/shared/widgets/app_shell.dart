@@ -27,6 +27,28 @@ String _initials(String fullName) {
   return (parts.first.substring(0, 1) + parts.last.substring(0, 1)).toUpperCase();
 }
 
+/// Fusionne les menus de tous les postes assignés à la session (spec §5,
+/// étendu pour les comptes multi-départements) : un seul "Tableau de bord"
+/// (celui du poste principal — voir [Session.workstation]), puis les autres
+/// entrées de chaque département assigné, sans doublon de route (la
+/// priorité va au département le plus prioritaire selon [kDepartmentOrder]
+/// — utile quand deux départements pointent vers la même route avec un
+/// libellé différent, ex: "Produits" vs "Boissons" → /catalog/products).
+List<_NavItem> _navItemsFor(Session session) {
+  final orderedDepartments = kDepartmentOrder.where(session.workstations.contains);
+  final seenRoutes = <String>{};
+  final items = <_NavItem>[];
+  for (final dept in orderedDepartments) {
+    for (final item in _navByWorkstation[dept] ?? const []) {
+      if (item.route.startsWith('/dashboard/') && dept != session.workstation) continue;
+      if (!seenRoutes.add(item.route)) continue;
+      if (item.permission != null && !PermissionService.has(session.user.role, item.permission!)) continue;
+      items.add(item);
+    }
+  }
+  return items;
+}
+
 class _NavItem {
   final String route;
   final String label;
@@ -118,9 +140,7 @@ class AppShell extends ConsumerWidget {
     if (session == null) return child;
 
     final workstation = session.workstation;
-    final items = _navByWorkstation[workstation]!
-        .where((i) => i.permission == null || PermissionService.has(session.user.role, i.permission!))
-        .toList();
+    final items = _navItemsFor(session);
 
     final location = GoRouterState.of(context).uri.toString();
     final selectedIndex = items.indexWhere((i) => _matchesRoute(location, i.route));

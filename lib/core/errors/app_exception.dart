@@ -24,3 +24,7 @@ class NotFoundException extends AppException {
 class PrinterException extends AppException {
   const PrinterException(super.message);
 }
+
+class NetworkException extends AppException {
+  const NetworkException(super.message);
+}

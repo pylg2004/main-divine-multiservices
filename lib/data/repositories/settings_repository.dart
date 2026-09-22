@@ -1,26 +1,25 @@
 import 'dart:async';
+import 'dart:convert';
 
-import '../datasources/local/hive_datasource.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../datasources/remote/firestore_sync_service.dart';
 import '../models/company_settings_model.dart';
 import '../models/printer_config_model.dart';
 
 class SettingsRepository {
-  static const _companyKey = 'company';
-  static const _printerKey = 'printer';
+  static const _printerPrefsKey = 'printer_config';
 
   final _sync = FirestoreSyncService.instance;
 
   static const _collection = 'settings';
+  static const _companyKey = 'company';
 
-  CompanySettingsModel get company {
-    final existing = HiveDatasource.settings.get(_companyKey);
-    if (existing is CompanySettingsModel) return existing;
-    return CompanySettingsModel();
-  }
+  CompanySettingsModel _company = CompanySettingsModel();
+  CompanySettingsModel get company => _company;
 
   Future<void> saveCompany(CompanySettingsModel settings) async {
-    await HiveDatasource.settings.put(_companyKey, settings);
+    _company = settings;
     unawaited(_sync.pushDoc(_collection, _companyKey, {
       'name': settings.name,
       'slogan': settings.slogan,
@@ -34,39 +33,49 @@ class SettingsRepository {
   }
 
   // La config imprimante reste locale à chaque poste (chaque caisse a sa
-  // propre imprimante physique) : volontairement jamais synchronisée.
-  PrinterConfigModel get printer {
-    final existing = HiveDatasource.settings.get(_printerKey);
-    if (existing is PrinterConfigModel) return existing;
-    return PrinterConfigModel();
+  // propre imprimante physique) : volontairement jamais synchronisée sur
+  // Firestore, stockée via SharedPreferences (le seul stockage local
+  // restant dans l'app — voir choix "Firestore = seule base de données"
+  // pour tout le reste).
+  PrinterConfigModel _printer = PrinterConfigModel();
+  PrinterConfigModel get printer => _printer;
+
+  Future<void> loadPrinterFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_printerPrefsKey);
+    if (raw == null) return;
+    try {
+      _printer = PrinterConfigModel.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      _printer = PrinterConfigModel();
+    }
   }
 
   Future<void> savePrinter(PrinterConfigModel config) async {
-    await HiveDatasource.settings.put(_printerKey, config);
+    _printer = config;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_printerPrefsKey, jsonEncode(config.toJson()));
   }
 
   bool get isSetupComplete => company.setupComplete;
 
-  /// Récupère les paramètres de l'entreprise depuis Firestore (source de
-  /// vérité) et remplace la copie locale. À appeler au démarrage — si
-  /// Firestore n'est pas configuré/injoignable ou que rien n'a encore été
-  /// synchronisé, la configuration locale existante (ou celle du Setup
-  /// Wizard) est conservée telle quelle.
+  /// Récupère les paramètres de l'entreprise depuis Firestore (seule base
+  /// de données) et remplace la copie en mémoire. À appeler après
+  /// connexion — si Firestore est injoignable ou que rien n'a encore été
+  /// synchronisé, la configuration par défaut (ou celle du Setup Wizard)
+  /// reste utilisée.
   Future<void> pullFromFirestore() async {
     final data = await _sync.pullDoc(_collection, _companyKey);
     if (data == null) return;
-    await HiveDatasource.settings.put(
-      _companyKey,
-      CompanySettingsModel(
-        name: data['name'] as String? ?? 'MAIN DIVINE MULTISERVICES',
-        slogan: data['slogan'] as String?,
-        phone: data['phone'] as String?,
-        address: data['address'] as String?,
-        currencyCode: data['currencyCode'] as String? ?? 'HTG',
-        currencySymbol: data['currencySymbol'] as String? ?? 'G',
-        logoPath: data['logoPath'] as String?,
-        setupComplete: data['setupComplete'] as bool? ?? false,
-      ),
+    _company = CompanySettingsModel(
+      name: data['name'] as String? ?? 'MAIN DIVINE MULTISERVICES',
+      slogan: data['slogan'] as String?,
+      phone: data['phone'] as String?,
+      address: data['address'] as String?,
+      currencyCode: data['currencyCode'] as String? ?? 'HTG',
+      currencySymbol: data['currencySymbol'] as String? ?? 'G',
+      logoPath: data['logoPath'] as String?,
+      setupComplete: data['setupComplete'] as bool? ?? false,
     );
   }
 }

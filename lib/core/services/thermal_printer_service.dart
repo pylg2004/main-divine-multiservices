@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:sunmi_printer_plus/sunmi_printer_plus.dart';
+import 'package:unified_esc_pos_printer/unified_esc_pos_printer.dart' as usb_printer;
 
 import '../../data/models/client_model.dart';
 import '../../data/models/company_settings_model.dart';
@@ -14,6 +16,7 @@ import '../errors/app_exception.dart';
 import '../utils/date_formatter.dart';
 import '../utils/money_formatter.dart';
 import '../utils/qty_formatter.dart';
+import 'mobiprint_channel.dart';
 
 /// Construit les tickets ESC/POS (spec §9) et les envoie directement à
 /// l'imprimante configurée — jamais de PDF (règle §5 du prompt).
@@ -21,10 +24,18 @@ import '../utils/qty_formatter.dart';
 /// Le Bluetooth n'est pas proposé : la seule lib BLE cross-platform viable
 /// (flutter_blue_plus) impose une licence commerciale payante pour tout usage
 /// par une entreprise à but lucratif — refusé pour ce projet. Réseau
-/// (WiFi/Ethernet) est donc le transport principal ; USB reste un placeholder
-/// (voir printBytes). Les terminaux tout-en-un Sunmi (imprimante intégrée,
-/// pas de réseau/USB à configurer) sont pris en charge via le SDK Sunmi
+/// (WiFi/Ethernet) et USB générique (unified_esc_pos_printer — câble, ou
+/// module thermique interne câblé en USB de la plupart des terminaux Android
+/// tout-en-un génériques) sont donc les deux transports principaux. Les
+/// terminaux Sunmi (imprimante intégrée non exposée en USB, pas de
+/// réseau/USB à configurer) sont pris en charge à part via le SDK Sunmi
 /// (sunmi_printer_plus), qui accepte directement les mêmes octets ESC/POS.
+/// Certains terminaux Android bas de gamme sans SDK ni USB standard
+/// (constaté sur MobiWire MobiPrint 3+ / "Mobilot MP3+") exposent leur
+/// imprimante via un pilote noyau texte brut (pas d'ESC/POS) — voir
+/// [MobiPrintChannel] et les méthodes printXxx (printSaleReceipt,
+/// printClientCard...) qui basculent automatiquement vers ce canal texte
+/// au lieu de buildXxx+printBytes quand ce type est configuré.
 ///
 /// Limitation assumée : un navigateur web ne peut ouvrir ni socket TCP brut,
 /// ni connexion USB. Sur Flutter web, [printBytes] échoue donc toujours avec
@@ -135,6 +146,59 @@ class ThermalPrinterService {
     return bytes;
   }
 
+  /// Point d'entrée unique pour imprimer un reçu de vente : bascule vers le
+  /// canal texte MobiPrint si configuré (celui-ci ne comprend pas l'ESC/POS
+  /// des [buildSaleReceipt]), sinon flux ESC/POS classique. Les écrans
+  /// appelants utilisent cette méthode plutôt que build+printBytes
+  /// directement pour ne pas avoir à connaître ce détail de transport.
+  Future<void> printSaleReceipt({required SaleModel sale, required CompanySettingsModel company}) async {
+    if (_isMobiPrint) {
+      await _printMobiPrintText(_saleReceiptText(sale: sale, company: company));
+      return;
+    }
+    await printBytes(await buildSaleReceipt(sale: sale, company: company));
+  }
+
+  String _saleReceiptText({required SaleModel sale, required CompanySettingsModel company}) {
+    final isPos = sale.workstation == Workstation.pos;
+    final isBeauty = sale.workstation == Workstation.beauty;
+    final isImpression = sale.workstation == Workstation.impression;
+    final isSinglePoste = isPos || isBeauty || isImpression;
+
+    final b = StringBuffer();
+    b.writeln(company.name);
+    if (isPos) {
+      b.writeln('Papeterie . Livres . Tissus');
+    } else if (isBeauty) {
+      b.writeln('STUDIO DE BEAUTE');
+    } else if (isImpression) {
+      b.writeln("SERVICES D'IMPRESSION");
+    } else {
+      b.writeln('Papeterie . Beaute . Impression');
+    }
+    if (company.phone != null && company.phone!.isNotEmpty) b.writeln('Tel: ${company.phone}');
+    b.writeln(_hrText());
+    b.writeln('Recu N: ${sale.id}');
+    b.writeln('Date: ${DateFormatter.dateTime(sale.date)}');
+    b.writeln('Client: ${sale.clientName}');
+    if (sale.clientPhone.isNotEmpty) b.writeln('Tel: ${sale.clientPhone}');
+    b.writeln('Servi par: ${sale.sellerName}${isSinglePoste ? '' : ' (${sale.workstation.name})'}');
+    b.writeln(_hrText());
+    for (final item in sale.items) {
+      b.writeln(item.title);
+      final qty = QtyFormatter.format(item.qty, fractional: QtyFormatter.isFractionalUnit(item.unit));
+      b.writeln(_padCols('  x$qty', _money(item.sum, company)));
+    }
+    b.writeln(_hrText());
+    b.writeln(_padCols('Sous-total', _money(sale.subtotal, company)));
+    if (sale.discount > 0) b.writeln(_padCols('Remise', '-${_money(sale.discount, company)}'));
+    b.writeln(_padCols('TOTAL', _money(sale.total, company)));
+    b.writeln('Paiement: ${_paymentLabel(sale.paymentMethod)}');
+    b.writeln(_hrText());
+    b.writeln(isBeauty ? 'Merci de votre confiance !' : 'Merci de votre visite !');
+    return b.toString();
+  }
+
   // ─────────────────────────── Fiche client ───────────────────────────
   Future<List<int>> buildClientCard({
     required ClientModel client,
@@ -174,6 +238,50 @@ class ThermalPrinterService {
     bytes += g.feed(2);
     bytes += g.cut();
     return bytes;
+  }
+
+  Future<void> printClientCard({
+    required ClientModel client,
+    required CompanySettingsModel company,
+    required List<SaleModel> recentSales,
+  }) async {
+    if (_isMobiPrint) {
+      await _printMobiPrintText(_clientCardText(client: client, company: company, recentSales: recentSales));
+      return;
+    }
+    await printBytes(await buildClientCard(client: client, company: company, recentSales: recentSales));
+  }
+
+  String _clientCardText({
+    required ClientModel client,
+    required CompanySettingsModel company,
+    required List<SaleModel> recentSales,
+  }) {
+    final b = StringBuffer();
+    b.writeln(company.name);
+    b.writeln('FICHE CLIENT');
+    b.writeln(_hrText());
+    b.writeln('Nom: ${client.fullName}');
+    b.writeln('Tel: ${client.phone}');
+    if (client.email != null && client.email!.isNotEmpty) b.writeln('Email: ${client.email}');
+    b.writeln('Client depuis: ${DateFormatter.date(client.createdAt)}');
+    b.writeln(_hrText());
+    b.writeln('STATISTIQUES');
+    b.writeln('Total depense: ${_money(client.totalSpent, company)}');
+    b.writeln('Points fidelite: ${client.loyaltyPoints}');
+    b.writeln('Nb visites: ${recentSales.length}');
+    if (client.lastVisit != null) b.writeln('Derniere visite: ${DateFormatter.date(client.lastVisit!)}');
+    b.writeln(_hrText());
+    b.writeln('DERNIERES VISITES');
+    for (final sale in recentSales.take(5)) {
+      b.writeln(_padCols(DateFormatter.date(sale.date), _money(sale.total, company)));
+    }
+    if (client.notes != null && client.notes!.isNotEmpty) {
+      b.writeln(_hrText());
+      b.writeln('NOTES / PREFERENCES');
+      b.writeln(client.notes!);
+    }
+    return b.toString();
   }
 
   // ─────────────────────── Rapport de caisse journalier ───────────────────────
@@ -223,6 +331,90 @@ class ThermalPrinterService {
     return bytes;
   }
 
+  Future<void> printDailyReport({
+    required CompanySettingsModel company,
+    required String periodLabel,
+    required int posSalesCount,
+    required double posRevenue,
+    required int beautySalesCount,
+    required double beautyRevenue,
+    required int printSalesCount,
+    required double printRevenue,
+    required Map<PaymentMethod, double> paymentsByMethod,
+    required String editedBy,
+  }) async {
+    if (_isMobiPrint) {
+      await _printMobiPrintText(_dailyReportText(
+        company: company,
+        periodLabel: periodLabel,
+        posSalesCount: posSalesCount,
+        posRevenue: posRevenue,
+        beautySalesCount: beautySalesCount,
+        beautyRevenue: beautyRevenue,
+        printSalesCount: printSalesCount,
+        printRevenue: printRevenue,
+        paymentsByMethod: paymentsByMethod,
+        editedBy: editedBy,
+      ));
+      return;
+    }
+    await printBytes(await buildDailyReport(
+      company: company,
+      periodLabel: periodLabel,
+      posSalesCount: posSalesCount,
+      posRevenue: posRevenue,
+      beautySalesCount: beautySalesCount,
+      beautyRevenue: beautyRevenue,
+      printSalesCount: printSalesCount,
+      printRevenue: printRevenue,
+      paymentsByMethod: paymentsByMethod,
+      editedBy: editedBy,
+    ));
+  }
+
+  String _dailyReportText({
+    required CompanySettingsModel company,
+    required String periodLabel,
+    required int posSalesCount,
+    required double posRevenue,
+    required int beautySalesCount,
+    required double beautyRevenue,
+    required int printSalesCount,
+    required double printRevenue,
+    required Map<PaymentMethod, double> paymentsByMethod,
+    required String editedBy,
+  }) {
+    final b = StringBuffer();
+    b.writeln(company.name);
+    b.writeln('RAPPORT DE CAISSE');
+    b.writeln(periodLabel);
+    b.writeln(_hrText());
+    b.writeln('POSTE PAPETERIE / POS');
+    b.writeln('Nb ventes: $posSalesCount');
+    b.writeln('CA: ${_money(posRevenue, company)}');
+    b.writeln(_hrText());
+    b.writeln('POSTE SOINS & BEAUTE');
+    b.writeln('Nb ventes: $beautySalesCount');
+    b.writeln('CA: ${_money(beautyRevenue, company)}');
+    b.writeln(_hrText());
+    b.writeln('POSTE IMPRESSION');
+    b.writeln('Nb ventes: $printSalesCount');
+    b.writeln('CA: ${_money(printRevenue, company)}');
+    b.writeln(_hrText());
+    b.writeln('TOTAL CONSOLIDE');
+    final total = posRevenue + beautyRevenue + printRevenue;
+    b.writeln('CA TOTAL JOUR: ${_money(total, company)}');
+    b.writeln('Nb ventes totales: ${posSalesCount + beautySalesCount + printSalesCount}');
+    b.writeln('Paiements:');
+    b.writeln(' - Especes: ${_money(paymentsByMethod[PaymentMethod.especes] ?? 0, company)}');
+    b.writeln(' - Carte: ${_money(paymentsByMethod[PaymentMethod.carte] ?? 0, company)}');
+    b.writeln(' - Mobile: ${_money(paymentsByMethod[PaymentMethod.mobile] ?? 0, company)}');
+    b.writeln(_hrText());
+    b.writeln('Edite le ${DateFormatter.dateTime(DateTime.now())}');
+    b.writeln('Par: $editedBy');
+    return b.toString();
+  }
+
   // ─────────────────────── Rapport personnel (non-admin) ───────────────────────
   /// Version allégée du rapport de caisse pour le personnel qui n'a que
   /// [Permission.reportsViewOwn] (vendeur, caissier, beautician, imprimeur) :
@@ -267,6 +459,72 @@ class ThermalPrinterService {
     return bytes;
   }
 
+  Future<void> printPersonalReport({
+    required CompanySettingsModel company,
+    required String periodLabel,
+    required String sellerName,
+    required int salesCount,
+    required double totalRevenue,
+    required List<({String title, double qty})> topItems,
+    required Map<PaymentMethod, double> paymentsByMethod,
+  }) async {
+    if (_isMobiPrint) {
+      await _printMobiPrintText(_personalReportText(
+        company: company,
+        periodLabel: periodLabel,
+        sellerName: sellerName,
+        salesCount: salesCount,
+        totalRevenue: totalRevenue,
+        topItems: topItems,
+        paymentsByMethod: paymentsByMethod,
+      ));
+      return;
+    }
+    await printBytes(await buildPersonalReport(
+      company: company,
+      periodLabel: periodLabel,
+      sellerName: sellerName,
+      salesCount: salesCount,
+      totalRevenue: totalRevenue,
+      topItems: topItems,
+      paymentsByMethod: paymentsByMethod,
+    ));
+  }
+
+  String _personalReportText({
+    required CompanySettingsModel company,
+    required String periodLabel,
+    required String sellerName,
+    required int salesCount,
+    required double totalRevenue,
+    required List<({String title, double qty})> topItems,
+    required Map<PaymentMethod, double> paymentsByMethod,
+  }) {
+    final b = StringBuffer();
+    b.writeln(company.name);
+    b.writeln('MON RAPPORT');
+    b.writeln(periodLabel);
+    b.writeln(_hrText());
+    b.writeln('Employe: $sellerName');
+    b.writeln('Nb ventes: $salesCount');
+    b.writeln('CA TOTAL: ${_money(totalRevenue, company)}');
+    if (topItems.isNotEmpty) {
+      b.writeln(_hrText());
+      b.writeln('TOP ARTICLES/SERVICES');
+      for (final item in topItems) {
+        b.writeln(_padCols(item.title, QtyFormatter.plain(item.qty)));
+      }
+    }
+    b.writeln(_hrText());
+    b.writeln('Paiements:');
+    b.writeln(' - Especes: ${_money(paymentsByMethod[PaymentMethod.especes] ?? 0, company)}');
+    b.writeln(' - Carte: ${_money(paymentsByMethod[PaymentMethod.carte] ?? 0, company)}');
+    b.writeln(' - Mobile: ${_money(paymentsByMethod[PaymentMethod.mobile] ?? 0, company)}');
+    b.writeln(_hrText());
+    b.writeln('Edite le ${DateFormatter.dateTime(DateTime.now())}');
+    return b.toString();
+  }
+
   Future<List<int>> buildTestTicket(CompanySettingsModel company) async {
     final g = await _generator();
     List<int> bytes = [];
@@ -280,6 +538,36 @@ class ThermalPrinterService {
     bytes += g.cut();
     return bytes;
   }
+
+  Future<void> printTestTicket(CompanySettingsModel company) async {
+    if (_isMobiPrint) {
+      await _printMobiPrintText(_testTicketText(company));
+      return;
+    }
+    await printBytes(await buildTestTicket(company));
+  }
+
+  String _testTicketText(CompanySettingsModel company) {
+    final b = StringBuffer();
+    b.writeln(company.name);
+    b.writeln('TEST IMPRIMANTE');
+    b.writeln(_hrText());
+    b.writeln('Si vous lisez ceci, la connexion');
+    b.writeln("a l'imprimante fonctionne correctement.");
+    b.writeln(DateFormatter.dateTime(DateTime.now()));
+    return b.toString();
+  }
+
+  static const _mobiPrintWidth = 32;
+
+  String _padCols(String left, String right, {int width = _mobiPrintWidth}) {
+    final space = width - right.length;
+    if (space <= 0) return right;
+    final l = left.length >= space ? left.substring(0, space - 1) : left;
+    return l.padRight(space) + right;
+  }
+
+  String _hrText([int width = _mobiPrintWidth]) => ''.padRight(width, '-');
 
   String _paymentLabel(PaymentMethod method) {
     switch (method) {
@@ -309,13 +597,49 @@ class ThermalPrinterService {
         await _printNetwork(config, bytes);
         break;
       case PrinterConnectionType.usb:
-        throw const PrinterException(
-          "L'impression USB directe n'est pas encore disponible dans cette version. "
-          'Utilisez une connexion Réseau (WiFi/Ethernet).',
-        );
+        await _printUsb(config, bytes);
+        break;
       case PrinterConnectionType.sunmiIntegrated:
         await _printSunmi(bytes);
         break;
+      case PrinterConnectionType.mobiPrintIntegrated:
+        // Ce transport ne comprend pas l'ESC/POS : les écrans appelants
+        // doivent utiliser printSaleReceipt/printClientCard/etc. (qui
+        // basculent vers _printMobiPrintText), jamais buildXxx+printBytes.
+        throw const PrinterException(
+          "Erreur interne : ce type d'imprimante utilise un canal texte dédié, pas printBytes.",
+        );
+    }
+  }
+
+  bool get _isMobiPrint =>
+      !kIsWeb && _settingsRepo.printer.connectionType == PrinterConnectionType.mobiPrintIntegrated;
+
+  /// Sonde si le pilote imprimante intégré (voir [MobiPrintChannel]) est
+  /// disponible sur ce terminal — utilisé pour la détection automatique
+  /// dans l'écran de configuration imprimante plutôt que de forcer une
+  /// sélection manuelle.
+  Future<bool> isMobiPrintAvailable() async {
+    if (kIsWeb || !Platform.isAndroid) return false;
+    return MobiPrintChannel.isAvailable();
+  }
+
+  Future<void> _printMobiPrintText(String text) async {
+    if (kIsWeb) {
+      throw const PrinterException(
+        "Impression non disponible sur le web : le navigateur ne peut pas parler au pilote "
+        "imprimante intégré. Utilisez l'application Android.",
+      );
+    }
+    if (!Platform.isAndroid) {
+      throw const PrinterException(
+        "L'imprimante intégrée (MobiPrint) n'est disponible que sur un terminal Android compatible.",
+      );
+    }
+    try {
+      await MobiPrintChannel.printText(text);
+    } on PlatformException catch (e) {
+      throw PrinterException("Impression sur l'imprimante intégrée impossible : ${e.message}");
     }
   }
 
@@ -333,6 +657,54 @@ class ThermalPrinterService {
       throw PrinterException("Connexion à l'imprimante réseau impossible : ${e.message}");
     } finally {
       socket?.destroy();
+    }
+  }
+
+  /// Imprime via USB générique (câble USB, ou module thermique interne câblé
+  /// en USB d'un terminal Android tout-en-un non-Sunmi). [config.address]
+  /// contient l'identifiant du périphérique renvoyé par [scanUsbPrinters]
+  /// (format `vendorId:productId` sur Android, port série sur desktop).
+  Future<void> _printUsb(PrinterConfigModel config, List<int> bytes) async {
+    if (config.address == null || config.address!.isEmpty) {
+      throw const PrinterException(
+        "Aucune imprimante USB sélectionnée. Allez dans Paramètres imprimante pour la détecter.",
+      );
+    }
+    final manager = usb_printer.PrinterManager();
+    try {
+      final device = usb_printer.UsbPrinterDevice(
+        name: config.deviceName ?? 'Imprimante USB',
+        identifier: config.address!,
+        usbPlatform: Platform.isAndroid ? usb_printer.UsbPlatform.android : usb_printer.UsbPlatform.desktop,
+      );
+      await manager.connect(device);
+      await manager.printBytes(bytes);
+      await manager.waitWriteComplete();
+    } on usb_printer.PrinterException catch (e) {
+      throw PrinterException("Impression USB impossible : ${e.message}");
+    } finally {
+      await manager.dispose();
+    }
+  }
+
+  /// Détecte les imprimantes USB branchées (voir README du plugin : classe
+  /// USB Printer 0x07 ou puce série FTDI/CP210x/CH34x — couvre la quasi
+  /// totalité des imprimantes thermiques ESC/POS, y compris le module
+  /// interne de la plupart des terminaux Android génériques). Utilisé par
+  /// l'écran de configuration imprimante pour proposer une liste à choisir
+  /// plutôt qu'une adresse à saisir à la main.
+  Future<List<usb_printer.UsbPrinterDevice>> scanUsbPrinters() async {
+    final manager = usb_printer.PrinterManager();
+    try {
+      final devices = await manager.scanPrinters(
+        types: const {usb_printer.PrinterConnectionType.usb},
+        timeout: const Duration(seconds: 5),
+      );
+      return devices.whereType<usb_printer.UsbPrinterDevice>().toList();
+    } on usb_printer.PrinterException catch (e) {
+      throw PrinterException('Détection USB impossible : ${e.message}');
+    } finally {
+      await manager.dispose();
     }
   }
 

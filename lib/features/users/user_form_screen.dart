@@ -23,13 +23,15 @@ class UserFormScreen extends ConsumerStatefulWidget {
 class _UserFormScreenState extends ConsumerState<UserFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
-  final _usernameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
   UserRole _role = UserRole.vendeur;
   bool _active = true;
   bool _loaded = false;
+  bool _sendingReset = false;
+  Set<Workstation> _departments = {};
 
   bool get _isEdit => widget.userId != null;
 
@@ -40,10 +42,11 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
       final user = ref.read(authRepositoryProvider).byId(widget.userId!);
       if (user != null) {
         _nameCtrl.text = user.name;
-        _usernameCtrl.text = user.username;
+        _emailCtrl.text = user.email;
         _phoneCtrl.text = user.phone ?? '';
         _role = user.role;
         _active = user.active;
+        _departments = user.departments.toSet();
       }
     }
     _loaded = true;
@@ -52,7 +55,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _usernameCtrl.dispose();
+    _emailCtrl.dispose();
     _phoneCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
@@ -71,23 +74,24 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
           phone: _phoneCtrl.text,
           role: _role,
           active: _active,
-          newPassword: _passwordCtrl.text.isEmpty ? null : _passwordCtrl.text,
+          departments: _role.isDepartmentAssignable ? _departments.toList() : const [],
         );
       } else {
         await repo.createUser(
-          username: _usernameCtrl.text,
+          email: _emailCtrl.text,
           name: _nameCtrl.text,
           role: _role,
           phone: _phoneCtrl.text,
           password: _passwordCtrl.text,
           active: _active,
+          departments: _role.isDepartmentAssignable ? _departments.toList() : const [],
         );
       }
       ref.read(dataRevisionProvider.notifier).state++;
       final actor = ref.read(sessionProvider)!.user;
       await ref
           .read(auditServiceProvider)
-          .log(actor, _isEdit ? 'Utilisateur modifié' : 'Utilisateur créé', details: _usernameCtrl.text);
+          .log(actor, _isEdit ? 'Utilisateur modifié' : 'Utilisateur créé', details: _emailCtrl.text);
       if (mounted) {
         ToastService.success(_isEdit ? 'Utilisateur mis à jour' : 'Utilisateur créé');
         context.pop();
@@ -97,10 +101,28 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
     }
   }
 
+  Future<void> _sendPasswordReset() async {
+    setState(() => _sendingReset = true);
+    try {
+      await ref.read(authRepositoryProvider).sendPasswordReset(_emailCtrl.text);
+      if (mounted) ToastService.success('Email de réinitialisation envoyé à ${_emailCtrl.text}');
+    } catch (e) {
+      ToastService.error(e.toString());
+    } finally {
+      if (mounted) setState(() => _sendingReset = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_loaded) return const SizedBox.shrink();
-    final workstation = _role.workstation;
+    final effectiveDepartments = _role.isDepartmentAssignable && _departments.isNotEmpty
+        ? _departments
+        : {_role.workstation};
+    final primary = kDepartmentOrder.firstWhere(
+      effectiveDepartments.contains,
+      orElse: () => _role.workstation,
+    );
 
     return AppShell(
       title: _isEdit ? "Modifier l'utilisateur" : 'Nouvel utilisateur',
@@ -140,10 +162,11 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
                   ),
                   const SizedBox(height: AppSizes.sm),
                   TextFormField(
-                    controller: _usernameCtrl,
-                    decoration: const InputDecoration(labelText: "Nom d'utilisateur"),
+                    controller: _emailCtrl,
+                    decoration: const InputDecoration(labelText: 'Email (identifiant de connexion)'),
+                    keyboardType: TextInputType.emailAddress,
                     enabled: !_isEdit,
-                    validator: (v) => Validators.required(v, field: "Le nom d'utilisateur"),
+                    validator: Validators.requiredEmail,
                   ),
                   const SizedBox(height: AppSizes.sm),
                   TextFormField(
@@ -157,50 +180,81 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
                     initialValue: _role,
                     decoration: const InputDecoration(labelText: 'Rôle'),
                     items: UserRole.values
-                        .map((r) => DropdownMenuItem(value: r, child: Text('${r.label} → ${r.workstation.label}')))
+                        .map((r) => DropdownMenuItem(value: r, child: Text(r.label)))
                         .toList(),
                     onChanged: (v) => setState(() => _role = v ?? _role),
                   ),
+                  if (_role.isDepartmentAssignable) ...[
+                    const SizedBox(height: AppSizes.sm),
+                    Text(
+                      'Départements (facultatif — laisser vide pour garder le poste par défaut du rôle)',
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                    const SizedBox(height: AppSizes.xs),
+                    Wrap(
+                      spacing: AppSizes.sm,
+                      runSpacing: AppSizes.xs,
+                      children: kAssignableDepartments
+                          .map((d) => FilterChip(
+                                avatar: Icon(d.icon, size: 16, color: d.color),
+                                label: Text(d.label),
+                                selected: _departments.contains(d),
+                                onSelected: (selected) => setState(() {
+                                  if (selected) {
+                                    _departments.add(d);
+                                  } else {
+                                    _departments.remove(d);
+                                  }
+                                }),
+                              ))
+                          .toList(),
+                    ),
+                  ],
                   const SizedBox(height: AppSizes.sm),
                   Container(
                     padding: const EdgeInsets.all(AppSizes.sm),
                     decoration: BoxDecoration(
-                      color: workstation.color.withValues(alpha: 0.1),
+                      color: primary.color.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(children: [
-                      Icon(workstation.icon, color: workstation.color, size: 18),
+                      Icon(primary.icon, color: primary.color, size: 18),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Cet utilisateur aura accès au poste : ${workstation.label}',
-                          style: TextStyle(color: workstation.color, fontWeight: FontWeight.w600),
+                          'Cet utilisateur aura accès au${effectiveDepartments.length > 1 ? 'x postes' : ' poste'} : '
+                          '${effectiveDepartments.map((w) => w.label).join(', ')}',
+                          style: TextStyle(color: primary.color, fontWeight: FontWeight.w600),
                         ),
                       ),
                     ]),
                   ),
                   const SizedBox(height: AppSizes.sm),
-                  TextFormField(
-                    controller: _passwordCtrl,
-                    decoration: InputDecoration(
-                      labelText: _isEdit ? 'Nouveau mot de passe (laisser vide pour ne pas changer)' : 'Mot de passe',
+                  if (_isEdit) ...[
+                    OutlinedButton.icon(
+                      onPressed: _sendingReset ? null : _sendPasswordReset,
+                      icon: _sendingReset
+                          ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.lock_reset),
+                      label: Text(
+                        _sendingReset ? 'Envoi en cours...' : 'Envoyer un lien de réinitialisation du mot de passe',
+                      ),
                     ),
-                    obscureText: true,
-                    validator: (v) {
-                      if (_isEdit && (v == null || v.isEmpty)) return null;
-                      return Validators.password(v);
-                    },
-                  ),
-                  const SizedBox(height: AppSizes.sm),
-                  TextFormField(
-                    controller: _confirmPasswordCtrl,
-                    decoration: const InputDecoration(labelText: 'Confirmer le mot de passe'),
-                    obscureText: true,
-                    validator: (v) {
-                      if (_isEdit && _passwordCtrl.text.isEmpty) return null;
-                      return Validators.confirmPassword(v, _passwordCtrl.text);
-                    },
-                  ),
+                  ] else ...[
+                    TextFormField(
+                      controller: _passwordCtrl,
+                      decoration: const InputDecoration(labelText: 'Mot de passe'),
+                      obscureText: true,
+                      validator: Validators.password,
+                    ),
+                    const SizedBox(height: AppSizes.sm),
+                    TextFormField(
+                      controller: _confirmPasswordCtrl,
+                      decoration: const InputDecoration(labelText: 'Confirmer le mot de passe'),
+                      obscureText: true,
+                      validator: (v) => Validators.confirmPassword(v, _passwordCtrl.text),
+                    ),
+                  ],
                   const SizedBox(height: AppSizes.sm),
                   SwitchListTile(
                     title: const Text('Compte actif'),

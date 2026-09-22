@@ -57,8 +57,7 @@ class SaleDetailScreen extends ConsumerWidget {
             onPressed: () async {
               final company = ref.read(settingsRepositoryProvider).company;
               try {
-                final bytes = await ref.read(thermalPrinterServiceProvider).buildSaleReceipt(sale: sale, company: company);
-                await ref.read(thermalPrinterServiceProvider).printBytes(bytes);
+                await ref.read(thermalPrinterServiceProvider).printSaleReceipt(sale: sale, company: company);
                 ToastService.success('Reçu imprimé');
               } catch (e) {
                 ToastService.error(e.toString());

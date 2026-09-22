@@ -22,7 +22,7 @@ final beautyServiceRepositoryProvider =
 final printServiceRepositoryProvider =
     Provider((ref) => PrintServiceRepository());
 final clientRepositoryProvider = Provider((ref) => ClientRepository());
-final saleRepositoryProvider = Provider((ref) => SaleRepository());
+final saleRepositoryProvider = Provider((ref) => SaleRepository(ref.watch(productRepositoryProvider)));
 final auditRepositoryProvider = Provider((ref) => AuditRepository());
 final settingsRepositoryProvider = Provider((ref) => SettingsRepository());
 
@@ -35,13 +35,11 @@ final thermalPrinterServiceProvider = Provider((ref) {
 });
 
 /// Incrémenté après chaque mutation de données (vente, client, produit...)
-/// pour permettre aux écrans de liste/dashboard de se rafraîchir sans
-/// dépendre d'un flux Hive par box.
+/// pour permettre aux écrans de liste/dashboard de se rafraîchir.
 final dataRevisionProvider = StateProvider<int>((ref) => 0);
 
-/// Valeur initiale lue une fois depuis Hive ; le Setup Wizard bascule
-/// explicitement cet état à `true` à la fin de l'étape 4 (voir
-/// features/setup) plutôt que de re-sonder la box en continu.
+/// Valeur initiale lue une fois depuis Firestore ; le Setup Wizard bascule
+/// explicitement cet état à `true` en fin de configuration.
 final setupCompleteProvider = StateProvider<bool>((ref) {
   return ref.watch(settingsRepositoryProvider).isSetupComplete;
 });

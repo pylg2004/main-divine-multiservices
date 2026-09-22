@@ -10,10 +10,11 @@ import '../../data/models/company_settings_model.dart';
 import '../../data/models/enums.dart';
 import '../../data/models/printer_config_model.dart';
 
-/// Premier lancement (base vide) : crée l'unique compte Super Admin et les
-/// informations de l'entreprise. Après cette étape, tous les autres
-/// utilisateurs sont créés par le Super Admin via /users (spec "Premier
-/// lancement — Setup Wizard").
+/// Configuration optionnelle des informations de l'entreprise et de
+/// l'imprimante — accessible manuellement (route /setup), plus jamais
+/// imposée au démarrage. Le tout premier compte Super Admin n'est plus créé
+/// ici : il se crée automatiquement à la première connexion réussie sur
+/// l'écran de login (voir AuthRepository.login / _bootstrapFirstAdmin).
 class SetupWizardScreen extends ConsumerStatefulWidget {
   const SetupWizardScreen({super.key});
 
@@ -34,20 +35,12 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
   String _currencySymbol = 'G';
 
   // Étape 2
-  final _adminNameCtrl = TextEditingController();
-  final _adminUsernameCtrl = TextEditingController();
-  final _adminPhoneCtrl = TextEditingController();
-  final _passwordCtrl = TextEditingController();
-  final _confirmPasswordCtrl = TextEditingController();
-
-  // Étape 3
   PrinterConnectionType? _printerType;
   final _printerAddressCtrl = TextEditingController();
   final _printerPortCtrl = TextEditingController(text: '9100');
   PrinterPaperWidth _paperWidth = PrinterPaperWidth.mm58;
 
   final _step1FormKey = GlobalKey<FormState>();
-  final _step2FormKey = GlobalKey<FormState>();
 
   @override
   void dispose() {
@@ -55,11 +48,6 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
     _sloganCtrl.dispose();
     _companyPhoneCtrl.dispose();
     _addressCtrl.dispose();
-    _adminNameCtrl.dispose();
-    _adminUsernameCtrl.dispose();
-    _adminPhoneCtrl.dispose();
-    _passwordCtrl.dispose();
-    _confirmPasswordCtrl.dispose();
     _printerAddressCtrl.dispose();
     _printerPortCtrl.dispose();
     super.dispose();
@@ -67,7 +55,6 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
 
   void _next() {
     if (_step == 0 && !(_step1FormKey.currentState?.validate() ?? false)) return;
-    if (_step == 1 && !(_step2FormKey.currentState?.validate() ?? false)) return;
     setState(() => _step++);
   }
 
@@ -77,15 +64,6 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
     setState(() => _submitting = true);
     try {
       final settingsRepo = ref.read(settingsRepositoryProvider);
-      final authRepo = ref.read(authRepositoryProvider);
-
-      await authRepo.createUser(
-        username: _adminUsernameCtrl.text,
-        name: _adminNameCtrl.text,
-        role: UserRole.superAdmin,
-        phone: _adminPhoneCtrl.text,
-        password: _passwordCtrl.text,
-      );
 
       if (_printerType == PrinterConnectionType.sunmiIntegrated) {
         await settingsRepo.savePrinter(PrinterConfigModel(
@@ -155,10 +133,10 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
                             child: const Text('Retour'),
                           ),
                         const Spacer(),
-                        if (_step < 3)
+                        if (_step < 2)
                           FilledButton(
                             onPressed: _next,
-                            child: Text(_step == 2 ? 'Continuer' : 'Suivant'),
+                            child: Text(_step == 1 ? 'Continuer' : 'Suivant'),
                           )
                         else
                           FilledButton(
@@ -188,8 +166,6 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
       case 0:
         return _buildCompanyStep();
       case 1:
-        return _buildAdminStep();
-      case 2:
         return _buildPrinterStep();
       default:
         return _buildConfirmStep();
@@ -258,56 +234,11 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
     );
   }
 
-  Widget _buildAdminStep() {
-    return Form(
-      key: _step2FormKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const _SectionTitle('Étape 2 — Compte Super Administrateur'),
-          const SizedBox(height: AppSizes.md),
-          TextFormField(
-            controller: _adminNameCtrl,
-            decoration: const InputDecoration(labelText: 'Nom complet'),
-            validator: (v) => Validators.required(v, field: 'Le nom'),
-          ),
-          const SizedBox(height: AppSizes.sm),
-          TextFormField(
-            controller: _adminUsernameCtrl,
-            decoration: const InputDecoration(labelText: "Nom d'utilisateur"),
-            validator: (v) => Validators.required(v, field: "Le nom d'utilisateur"),
-          ),
-          const SizedBox(height: AppSizes.sm),
-          TextFormField(
-            controller: _adminPhoneCtrl,
-            decoration: const InputDecoration(labelText: 'Téléphone'),
-            keyboardType: TextInputType.phone,
-            validator: Validators.phone,
-          ),
-          const SizedBox(height: AppSizes.sm),
-          TextFormField(
-            controller: _passwordCtrl,
-            decoration: const InputDecoration(labelText: 'Mot de passe'),
-            obscureText: true,
-            validator: Validators.password,
-          ),
-          const SizedBox(height: AppSizes.sm),
-          TextFormField(
-            controller: _confirmPasswordCtrl,
-            decoration: const InputDecoration(labelText: 'Confirmer le mot de passe'),
-            obscureText: true,
-            validator: (v) => Validators.confirmPassword(v, _passwordCtrl.text),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildPrinterStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _SectionTitle('Étape 3 — Configuration imprimante POS (optionnel)'),
+        const _SectionTitle('Étape 2 — Configuration imprimante POS (optionnel)'),
         const SizedBox(height: AppSizes.xs),
         Text(
           'Vous pourrez configurer ou modifier ceci plus tard dans Paramètres imprimante.',
@@ -325,18 +256,42 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
               value: PrinterConnectionType.sunmiIntegrated,
               child: Text('Imprimante intégrée (terminal Sunmi)'),
             ),
+            DropdownMenuItem(
+              value: PrinterConnectionType.mobiPrintIntegrated,
+              child: Text('Imprimante intégrée (autre terminal)'),
+            ),
           ],
           onChanged: (v) => setState(() => _printerType = v),
         ),
+        if (_printerType == PrinterConnectionType.mobiPrintIntegrated)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSizes.xs),
+            child: Text(
+              'Rien à saisir. Une « Détection automatique » est disponible dans '
+              'Paramètres imprimante — préférez-la à ce réglage manuel.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
         if (_printerType != null) ...[
-          if (_printerType != PrinterConnectionType.sunmiIntegrated) ...[
+          if (_printerType != PrinterConnectionType.sunmiIntegrated &&
+              _printerType != PrinterConnectionType.mobiPrintIntegrated) ...[
             const SizedBox(height: AppSizes.sm),
             TextFormField(
               controller: _printerAddressCtrl,
               decoration: InputDecoration(
-                labelText: _printerType == PrinterConnectionType.network ? 'Adresse IP' : 'Chemin USB',
+                labelText: _printerType == PrinterConnectionType.network ? 'Adresse IP' : 'Identifiant USB',
               ),
             ),
+            if (_printerType == PrinterConnectionType.usb)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSizes.xs),
+                child: Text(
+                  'Vous pourrez détecter automatiquement une imprimante USB branchée '
+                  '(y compris l\'imprimante intégrée de nombreux terminaux Android) '
+                  'depuis Paramètres imprimante.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
           ],
           if (_printerType == PrinterConnectionType.network) ...[
             const SizedBox(height: AppSizes.sm),
@@ -365,17 +320,16 @@ class _SetupWizardScreenState extends ConsumerState<SetupWizardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _SectionTitle('Étape 4 — Confirmation'),
+        const _SectionTitle('Étape 3 — Confirmation'),
         const SizedBox(height: AppSizes.md),
         _SummaryRow('Entreprise', _companyNameCtrl.text),
-        _SummaryRow('Super Admin', _adminNameCtrl.text),
-        _SummaryRow("Nom d'utilisateur", _adminUsernameCtrl.text),
         _SummaryRow('Devise', _currencyCode),
         _SummaryRow('Imprimante', _printerTypeLabel(_printerType)),
         const SizedBox(height: AppSizes.md),
         Text(
-          "Après cette étape, seul le Super Admin existera. Il pourra créer tous les autres "
-          'utilisateurs (admin, gestionnaire, vendeur, caissier, beautician) depuis Utilisateurs.',
+          'Le compte Super Admin se crée automatiquement à la première connexion : sur l\'écran '
+          "de connexion, saisissez l'email et le mot de passe voulus pour ce compte fondateur. "
+          "Il pourra ensuite créer tous les autres utilisateurs depuis Utilisateurs.",
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -390,11 +344,11 @@ class _StepIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: List.generate(4, (i) {
+      children: List.generate(3, (i) {
         final active = i <= step;
         return Expanded(
           child: Container(
-            margin: EdgeInsets.only(right: i < 3 ? 6 : 0),
+            margin: EdgeInsets.only(right: i < 2 ? 6 : 0),
             height: 4,
             decoration: BoxDecoration(
               color: active ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outlineVariant,
@@ -404,6 +358,21 @@ class _StepIndicator extends StatelessWidget {
         );
       }),
     );
+  }
+}
+
+String _printerTypeLabel(PrinterConnectionType? type) {
+  switch (type) {
+    case null:
+      return 'À configurer plus tard';
+    case PrinterConnectionType.network:
+      return 'Réseau (WiFi/Ethernet)';
+    case PrinterConnectionType.usb:
+      return 'USB';
+    case PrinterConnectionType.sunmiIntegrated:
+      return 'Imprimante intégrée (Sunmi)';
+    case PrinterConnectionType.mobiPrintIntegrated:
+      return 'Imprimante intégrée (autre terminal)';
   }
 }
 

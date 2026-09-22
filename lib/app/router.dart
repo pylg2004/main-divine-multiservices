@@ -2,7 +2,6 @@ import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../core/providers.dart';
 import '../data/models/enums.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/session_notifier.dart';
@@ -69,21 +68,21 @@ const Map<String, List<Permission>> _routePermissions = {
 };
 
 final routerProvider = Provider<GoRouter>((ref) {
-  // On ne surveille que l'identité de la session et le flag de setup : un
-  // changement ici (login/logout/fin du wizard) reconstruit le router, ce
-  // qui est le comportement voulu pour ces transitions peu fréquentes.
+  // On ne surveille que l'identité de la session : un changement ici
+  // (login/logout) reconstruit le router, ce qui est le comportement voulu
+  // pour cette transition peu fréquente. L'app démarre toujours sur /login
+  // — plus de wizard obligatoire au premier lancement : le tout premier
+  // compte Super Admin se crée automatiquement à la première connexion
+  // réussie (voir AuthRepository.login). Le wizard (/setup) reste
+  // accessible manuellement pour configurer entreprise/imprimante.
   final session = ref.watch(sessionProvider);
-  final setupComplete = ref.watch(setupCompleteProvider);
 
   return GoRouter(
     initialLocation: '/login',
     redirect: (context, state) {
       final loc = state.matchedLocation;
 
-      if (!setupComplete) {
-        return loc == '/setup' ? null : '/setup';
-      }
-      if (loc == '/setup') return session == null ? '/login' : session.workstation.homeRoute;
+      if (loc == '/setup') return null;
 
       if (session == null) {
         return loc == '/login' ? null : '/login';
@@ -94,7 +93,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final allowedWorkstations =
           _routeWorkstations.entries.firstWhereOrNull((e) => loc.startsWith(e.key))?.value;
-      if (allowedWorkstations != null && !allowedWorkstations.contains(session.workstation)) {
+      if (allowedWorkstations != null && !allowedWorkstations.any(session.workstations.contains)) {
         return session.workstation.homeRoute;
       }
 

@@ -133,32 +133,33 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
             onPressed: () async {
               final company = ref.read(settingsRepositoryProvider).company;
               try {
-                final bytes = ownReportOnly
-                    ? await ref.read(thermalPrinterServiceProvider).buildPersonalReport(
-                          company: company,
-                          periodLabel: _periodLabel(),
-                          sellerName: session.user.name,
-                          salesCount: sales.length,
-                          totalRevenue: totalRevenue,
-                          topItems: topItems.take(5).map((e) => (title: e.key, qty: e.value)).toList(),
-                          paymentsByMethod: paymentTotals,
-                        )
-                    : await ref.read(thermalPrinterServiceProvider).buildDailyReport(
-                          company: company,
-                          periodLabel: _periodLabel(),
-                          posSalesCount:
-                              sales.where((s) => s.items.any((i) => i.type == SaleItemType.product)).length,
-                          posRevenue: posRevenue,
-                          beautySalesCount:
-                              sales.where((s) => s.items.any((i) => i.type == SaleItemType.beautyService)).length,
-                          beautyRevenue: beautyRevenue,
-                          printSalesCount:
-                              sales.where((s) => s.items.any((i) => i.type == SaleItemType.printService)).length,
-                          printRevenue: printRevenue,
-                          paymentsByMethod: paymentTotals,
-                          editedBy: session.user.name,
-                        );
-                await ref.read(thermalPrinterServiceProvider).printBytes(bytes);
+                if (ownReportOnly) {
+                  await ref.read(thermalPrinterServiceProvider).printPersonalReport(
+                        company: company,
+                        periodLabel: _periodLabel(),
+                        sellerName: session.user.name,
+                        salesCount: sales.length,
+                        totalRevenue: totalRevenue,
+                        topItems: topItems.take(5).map((e) => (title: e.key, qty: e.value)).toList(),
+                        paymentsByMethod: paymentTotals,
+                      );
+                } else {
+                  await ref.read(thermalPrinterServiceProvider).printDailyReport(
+                        company: company,
+                        periodLabel: _periodLabel(),
+                        posSalesCount:
+                            sales.where((s) => s.items.any((i) => i.type == SaleItemType.product)).length,
+                        posRevenue: posRevenue,
+                        beautySalesCount:
+                            sales.where((s) => s.items.any((i) => i.type == SaleItemType.beautyService)).length,
+                        beautyRevenue: beautyRevenue,
+                        printSalesCount:
+                            sales.where((s) => s.items.any((i) => i.type == SaleItemType.printService)).length,
+                        printRevenue: printRevenue,
+                        paymentsByMethod: paymentTotals,
+                        editedBy: session.user.name,
+                      );
+                }
                 ToastService.success('Rapport imprimé');
               } catch (e) {
                 ToastService.error(e.toString());

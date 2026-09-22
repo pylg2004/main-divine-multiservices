@@ -1,41 +1,21 @@
-import 'package:hive/hive.dart';
-
 import 'enums.dart';
 import 'sale_item_model.dart';
 
-part 'sale_model.g.dart';
-
-@HiveType(typeId: 4)
-class SaleModel extends HiveObject {
-  @HiveField(0)
+class SaleModel {
   String id; // VTE-XXXX
-  @HiveField(1)
   DateTime date;
-  @HiveField(2)
   String sellerId;
-  @HiveField(3)
   String sellerName;
-  @HiveField(4)
   String sellerRole;
-  @HiveField(5)
   Workstation workstation;
-  @HiveField(6)
   String? clientId;
-  @HiveField(7)
   String clientName;
-  @HiveField(8)
   String clientPhone;
-  @HiveField(9)
   List<SaleItemModel> items;
-  @HiveField(10)
   double discount;
-  @HiveField(11)
   PaymentMethod paymentMethod;
-  @HiveField(12)
   SaleStatus status;
-  @HiveField(13)
   int loyaltyPointsEarned;
-  @HiveField(14)
   DateTime createdAt;
 
   SaleModel({

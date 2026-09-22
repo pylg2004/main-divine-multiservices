@@ -37,9 +37,6 @@ dependencies:
   flutter_riverpod: ^2.6.1
   go_router: ^17.5.0
   shared_preferences: ^2.5.5
-  hive: ^2.2.3
-  hive_flutter: ^1.1.0
-  path_provider: ^2.1.6
   intl: ^0.20.3
   fl_chart: ^1.2.0
   google_fonts: ^8.2.1
@@ -47,13 +44,20 @@ dependencies:
   crypto: ^3.0.7
   email_validator: ^3.0.0
   image_picker: ^1.2.3
-  permission_handler: ^13.0.2
+  # Fixé à 12.x (plutôt que le ^13.x le plus récent) : permission_handler
+  # 13.x tire permission_handler_android ^14.1.0, dont le build.gradle.kts
+  # publié contient un bug connu ("Unresolved reference: compilerOptions")
+  # qui casse la compilation Android — voir
+  # https://github.com/Baseflow/flutter-permission-handler/issues/1561.
+  # Package non utilisé ailleurs dans le code (aucune régression d'API).
+  permission_handler: ^12.0.0
   esc_pos_utils_plus: ^2.0.4
   collection: ^1.19.1
   firebase_core: ^4.1.1
   cloud_firestore: ^6.0.2
   firebase_auth: ^6.1.0
   sunmi_printer_plus: ^4.1.1
+  unified_esc_pos_printer: ^3.4.0
 
 dev_dependencies:
   flutter_test:
@@ -65,8 +69,6 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  hive_generator: ^2.0.1
-  build_runner: ^2.4.13
   flutter_launcher_icons: ^0.14.3
 
 flutter_launcher_icons:

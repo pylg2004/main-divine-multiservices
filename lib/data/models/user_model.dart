@@ -1,31 +1,26 @@
-import 'package:hive/hive.dart';
-
 import 'enums.dart';
 
-part 'user_model.g.dart';
-
-@HiveType(typeId: 0)
-class UserModel extends HiveObject {
-  @HiveField(0)
+class UserModel {
   String id;
   /// Identifiant de connexion choisi et géré par l'admin — un simple nom
   /// d'utilisateur, pas une adresse email (le personnel n'en a pas toujours).
-  @HiveField(1)
   String username;
-  @HiveField(2)
   String name;
-  @HiveField(3)
   UserRole role;
-  @HiveField(4)
   String? phone;
-  @HiveField(5)
   bool active;
-  @HiveField(6)
   DateTime createdAt;
-  @HiveField(7)
   String passwordHash;
-  @HiveField(8)
   String salt;
+  /// Départements (postes) auxquels ce compte a accès, en plus de celui par
+  /// défaut de son rôle — permet d'assigner un vendeur à plusieurs rayons
+  /// (ex: Papeterie + Boissons) via des cases à cocher dans le formulaire
+  /// utilisateur. Vide = comportement historique (un seul poste, dérivé du
+  /// rôle via [WorkstationExtension.workstation]).
+  List<Workstation> departments;
+  /// Identifiant de connexion Firebase Auth — obligatoire depuis le passage
+  /// à l'authentification cloud (voir AuthRepository.login).
+  String email;
 
   UserModel({
     required this.id,
@@ -37,5 +32,7 @@ class UserModel extends HiveObject {
     required this.createdAt,
     required this.passwordHash,
     required this.salt,
-  });
+    List<Workstation>? departments,
+    this.email = '',
+  }) : departments = departments ?? [];
 }

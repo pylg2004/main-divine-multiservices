@@ -1,25 +1,12 @@
-import 'package:hive/hive.dart';
-
-part 'company_settings_model.g.dart';
-
-/// Enregistrement unique (clé fixe 'company') stocké dans la box settings.
-@HiveType(typeId: 7)
-class CompanySettingsModel extends HiveObject {
-  @HiveField(0)
+/// Enregistrement unique (document Firestore `settings/company`).
+class CompanySettingsModel {
   String name;
-  @HiveField(1)
   String? slogan;
-  @HiveField(2)
   String? phone;
-  @HiveField(3)
   String? address;
-  @HiveField(4)
   String currencyCode;
-  @HiveField(5)
   String currencySymbol;
-  @HiveField(6)
   String? logoPath;
-  @HiveField(7)
   bool setupComplete;
 
   CompanySettingsModel({

@@ -26,6 +26,50 @@ extension WorkstationExtension on UserRole {
   }
 }
 
+/// Départements concrets qu'un admin peut cocher/décocher pour un compte
+/// vendeur (voir UserModel.departments) — Administration et Vente Générale
+/// ne sont pas des cases à cocher : Administration est un rôle de gestion à
+/// part, et Vente Générale équivaut à cocher les 4 cases ci-dessous.
+const kAssignableDepartments = [
+  Workstation.pos,
+  Workstation.beauty,
+  Workstation.impression,
+  Workstation.boisson,
+];
+
+/// Ordre de priorité utilisé pour choisir le poste "principal" (couleur de
+/// la barre d'app, tableau de bord d'accueil) quand un compte a plusieurs
+/// départements assignés.
+const kDepartmentOrder = [
+  Workstation.pos,
+  Workstation.beauty,
+  Workstation.impression,
+  Workstation.boisson,
+  Workstation.general,
+  Workstation.admin,
+];
+
+extension UserRoleAssignment on UserRole {
+  /// Rôles "vendeur" dont les départements peuvent être personnalisés
+  /// (plusieurs rayons à la fois) — par opposition aux rôles de gestion
+  /// (superAdmin/admin/manager), toujours rattachés au poste Administration.
+  bool get isDepartmentAssignable {
+    switch (this) {
+      case UserRole.superAdmin:
+      case UserRole.admin:
+      case UserRole.manager:
+        return false;
+      case UserRole.vendeur:
+      case UserRole.caissier:
+      case UserRole.beautician:
+      case UserRole.imprimeur:
+      case UserRole.vendeurGeneral:
+      case UserRole.vendeurBoisson:
+        return true;
+    }
+  }
+}
+
 extension WorkstationInfo on Workstation {
   String get label {
     switch (this) {

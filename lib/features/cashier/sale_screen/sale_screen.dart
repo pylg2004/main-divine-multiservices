@@ -9,6 +9,7 @@ import '../../../core/utils/qty_formatter.dart';
 import '../../../data/models/client_model.dart';
 import '../../../data/models/enums.dart';
 import '../../../data/models/sale_item_model.dart';
+import '../../../data/models/sale_model.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/aune_quantity_picker.dart';
 import '../../../shared/widgets/empty_state.dart';
@@ -55,10 +56,22 @@ class _SaleScreenState extends ConsumerState<SaleScreen> {
   String _query = '';
   int _mobileTab = 0;
 
-  List<_CatalogEntry> _catalogFor(Workstation workstation) {
+  /// Combine les catalogues de tous les postes assignés à la session (spec
+  /// §8, étendu pour les comptes multi-départements). Un compte "Papeterie +
+  /// Boissons" voit tous les produits (le rayon Papeterie couvre déjà tout),
+  /// un compte "Boissons" seul ne voit que la catégorie Boisson.
+  List<_CatalogEntry> _catalogFor(Set<Workstation> workstations) {
     final entries = <_CatalogEntry>[];
-    if (workstation == Workstation.pos || workstation == Workstation.admin || workstation == Workstation.general) {
-      for (final p in ref.watch(productsListProvider).where((p) => p.active)) {
+    final hasAllProducts = workstations.contains(Workstation.pos) ||
+        workstations.contains(Workstation.admin) ||
+        workstations.contains(Workstation.general);
+    final hasBoissonOnly = !hasAllProducts && workstations.contains(Workstation.boisson);
+
+    if (hasAllProducts || hasBoissonOnly) {
+      final products = ref.watch(productsListProvider).where(
+            (p) => p.active && (hasAllProducts || p.category == ProductCategory.boisson),
+          );
+      for (final p in products) {
         entries.add(_CatalogEntry(
           id: p.id,
           type: SaleItemType.product,
@@ -71,22 +84,9 @@ class _SaleScreenState extends ConsumerState<SaleScreen> {
         ));
       }
     }
-    if (workstation == Workstation.boisson) {
-      for (final p
-          in ref.watch(productsListProvider).where((p) => p.active && p.category == ProductCategory.boisson)) {
-        entries.add(_CatalogEntry(
-          id: p.id,
-          type: SaleItemType.product,
-          title: p.name,
-          categoryLabel: productCategoryLabel(p.category),
-          unit: p.unit,
-          color: p.color,
-          price: p.price,
-          discountEligible: p.discountEligible,
-        ));
-      }
-    }
-    if (workstation == Workstation.beauty || workstation == Workstation.admin || workstation == Workstation.general) {
+    if (workstations.contains(Workstation.beauty) ||
+        workstations.contains(Workstation.admin) ||
+        workstations.contains(Workstation.general)) {
       for (final s in ref.watch(beautyServicesListProvider).where((s) => s.active)) {
         entries.add(_CatalogEntry(
           id: s.id,
@@ -97,7 +97,9 @@ class _SaleScreenState extends ConsumerState<SaleScreen> {
         ));
       }
     }
-    if (workstation == Workstation.impression || workstation == Workstation.admin || workstation == Workstation.general) {
+    if (workstations.contains(Workstation.impression) ||
+        workstations.contains(Workstation.admin) ||
+        workstations.contains(Workstation.general)) {
       for (final s in ref.watch(printServicesListProvider).where((s) => s.active)) {
         entries.add(_CatalogEntry(
           id: s.id,
@@ -114,8 +116,7 @@ class _SaleScreenState extends ConsumerState<SaleScreen> {
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider)!;
-    final workstation = session.workstation;
-    var catalog = _catalogFor(workstation);
+    var catalog = _catalogFor(session.workstations);
 
     final categories = ['Tout', ...{for (final e in catalog) e.categoryLabel}];
     if (_categoryFilter != 'Tout') {
@@ -444,18 +445,28 @@ class _CartPane extends ConsumerWidget {
 
     final loyaltyPoints = (total / 100).floor();
 
-    final sale = await ref.read(saleRepositoryProvider).create(
-          sellerId: session.user.id,
-          sellerName: session.user.name,
-          sellerRole: session.user.role.name,
-          workstation: session.workstation,
-          clientId: client.id,
-          clientName: client.fullName,
-          clientPhone: client.phone,
-          items: items,
-          paymentMethod: method,
-          loyaltyPointsEarned: loyaltyPoints,
-        );
+    // Une vente exige une connexion internet active (voir
+    // SaleRepository.create) — si create() échoue (réseau absent), rien
+    // n'a été enregistré nulle part, donc on s'arrête ici sans toucher au
+    // panier ni au client.
+    final SaleModel sale;
+    try {
+      sale = await ref.read(saleRepositoryProvider).create(
+            sellerId: session.user.id,
+            sellerName: session.user.name,
+            sellerRole: session.user.role.name,
+            workstation: session.workstation,
+            clientId: client.id,
+            clientName: client.fullName,
+            clientPhone: client.phone,
+            items: items,
+            paymentMethod: method,
+            loyaltyPointsEarned: loyaltyPoints,
+          );
+    } catch (e) {
+      if (context.mounted) ToastService.error(e.toString());
+      return;
+    }
 
     await ref.read(clientRepositoryProvider).registerVisit(
           clientId: client.id,
@@ -477,8 +488,7 @@ class _CartPane extends ConsumerWidget {
       ToastService.success('Vente ${sale.id} enregistrée');
       final company = ref.read(settingsRepositoryProvider).company;
       try {
-        final bytes = await ref.read(thermalPrinterServiceProvider).buildSaleReceipt(sale: sale, company: company);
-        await ref.read(thermalPrinterServiceProvider).printBytes(bytes);
+        await ref.read(thermalPrinterServiceProvider).printSaleReceipt(sale: sale, company: company);
         if (context.mounted) ToastService.success('Reçu imprimé');
       } catch (e) {
         if (context.mounted) ToastService.error(e.toString());

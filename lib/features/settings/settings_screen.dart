@@ -5,7 +5,6 @@ import '../../core/constants/app_sizes.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/providers.dart';
 import '../../core/services/toast_service.dart';
-import '../../data/datasources/local/hive_datasource.dart';
 import '../../data/models/company_settings_model.dart';
 import '../../shared/widgets/app_shell.dart';
 import '../../shared/widgets/confirm_dialog.dart';
@@ -68,11 +67,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       danger: true,
     );
     if (!ok) return;
-    await HiveDatasource.products.clear();
-    await HiveDatasource.beautyServices.clear();
-    await HiveDatasource.clients.clear();
-    await HiveDatasource.sales.clear();
-    await HiveDatasource.auditLogs.clear();
+    await ref.read(productRepositoryProvider).deleteAll();
+    await ref.read(beautyServiceRepositoryProvider).deleteAll();
+    await ref.read(clientRepositoryProvider).deleteAll();
+    await ref.read(saleRepositoryProvider).deleteAll();
+    await ref.read(auditRepositoryProvider).deleteAll();
     ref.read(dataRevisionProvider.notifier).state++;
     if (mounted) ToastService.success('Données réinitialisées');
   }

@@ -52,10 +52,9 @@ class ClientDetailScreen extends ConsumerWidget {
             onPressed: () async {
               final company = ref.read(settingsRepositoryProvider).company;
               try {
-                final bytes = await ref
+                await ref
                     .read(thermalPrinterServiceProvider)
-                    .buildClientCard(client: client, company: company, recentSales: sales);
-                await ref.read(thermalPrinterServiceProvider).printBytes(bytes);
+                    .printClientCard(client: client, company: company, recentSales: sales);
                 ToastService.success('Fiche imprimée');
               } catch (e) {
                 ToastService.error(e.toString());

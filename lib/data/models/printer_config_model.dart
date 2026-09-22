@@ -1,21 +1,16 @@
-import 'package:hive/hive.dart';
+import 'package:collection/collection.dart';
 
 import 'enums.dart';
 
-part 'printer_config_model.g.dart';
-
-/// Enregistrement unique (clé fixe 'printer') stocké dans la box settings.
-@HiveType(typeId: 8)
-class PrinterConfigModel extends HiveObject {
-  @HiveField(0)
+/// Enregistrement unique, stocké localement (SharedPreferences, clé
+/// `printer_config`) — jamais sur Firestore : chaque poste de caisse a sa
+/// propre imprimante physique, donc cette config ne doit pas se propager
+/// aux autres appareils (voir SettingsRepository.printer).
+class PrinterConfigModel {
   PrinterConnectionType? connectionType;
-  @HiveField(1)
   String? address; // MAC bluetooth, chemin USB, ou IP réseau
-  @HiveField(2)
   int? port; // pour réseau
-  @HiveField(3)
   String? deviceName;
-  @HiveField(4)
   PrinterPaperWidth paperWidth;
 
   PrinterConfigModel({
@@ -28,5 +23,30 @@ class PrinterConfigModel extends HiveObject {
 
   bool get isConfigured =>
       connectionType == PrinterConnectionType.sunmiIntegrated ||
+      connectionType == PrinterConnectionType.mobiPrintIntegrated ||
       (connectionType != null && address != null);
+
+  Map<String, dynamic> toJson() => {
+        'connectionType': connectionType?.name,
+        'address': address,
+        'port': port,
+        'deviceName': deviceName,
+        'paperWidth': paperWidth.name,
+      };
+
+  factory PrinterConfigModel.fromJson(Map<String, dynamic> json) {
+    return PrinterConfigModel(
+      connectionType: PrinterConnectionType.values
+          .where((t) => t.name == json['connectionType'])
+          .cast<PrinterConnectionType?>()
+          .firstOrNull,
+      address: json['address'] as String?,
+      port: json['port'] as int? ?? 9100,
+      deviceName: json['deviceName'] as String?,
+      paperWidth: PrinterPaperWidth.values.firstWhere(
+        (w) => w.name == json['paperWidth'],
+        orElse: () => PrinterPaperWidth.mm58,
+      ),
+    );
+  }
 }

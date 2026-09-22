@@ -1,4 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- unified_esc_pos_printer : imprimante réseau (WiFi/Ethernet) et USB
+         générique — voir lib/core/services/thermal_printer_service.dart.
+         Pas de permissions Bluetooth : ce transport n'est pas utilisé. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
     <application
         android:label="main_divine_multiservices"
         android:name="${applicationName}"

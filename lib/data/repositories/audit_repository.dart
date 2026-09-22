@@ -2,13 +2,14 @@ import 'dart:async';
 
 import 'package:uuid/uuid.dart';
 
-import '../datasources/local/hive_datasource.dart';
+import '../datasources/local/memory_collection.dart';
 import '../datasources/remote/firestore_sync_service.dart';
 import '../models/audit_log_model.dart';
 
 class AuditRepository {
   final _uuid = const Uuid();
   final _sync = FirestoreSyncService.instance;
+  final _cache = MemoryCollection<AuditLogModel>();
 
   static const _collection = 'audit_logs';
 
@@ -26,7 +27,7 @@ class AuditRepository {
       action: action,
       details: details,
     );
-    await HiveDatasource.auditLogs.put(entry.id, entry);
+    _cache.put(entry.id, entry);
     unawaited(_sync.pushDoc(_collection, entry.id, {
       'timestamp': entry.timestamp,
       'userId': entry.userId,
@@ -37,21 +38,29 @@ class AuditRepository {
   }
 
   List<AuditLogModel> all() {
-    final list = HiveDatasource.auditLogs.values.toList();
+    final list = _cache.all;
     list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
     return list;
   }
 
-  /// Récupère le journal d'audit depuis Firestore (source de vérité) et
-  /// remplace le cache local. À appeler au démarrage — si Firestore n'est
-  /// pas configuré/injoignable, le cache local existant est conservé tel
-  /// quel.
+  /// Supprime tout le journal d'audit (Firestore + cache) — utilisé par la
+  /// réinitialisation des données depuis Paramètres.
+  Future<void> deleteAll() async {
+    final ids = _cache.all.map((e) => e.id).toList();
+    for (final id in ids) {
+      await _sync.deleteDoc(_collection, id);
+    }
+    _cache.replaceAll({});
+  }
+
+  /// Récupère le journal d'audit depuis Firestore (seule base de données)
+  /// et remplace le cache en mémoire. À appeler au démarrage/après
+  /// connexion — si Firestore est injoignable, le cache reste tel quel.
   Future<void> pullFromFirestore() async {
     final docs = await _sync.pullCollection(_collection);
-    for (final data in docs) {
-      await HiveDatasource.auditLogs.put(
-        data['id'] as String,
-        AuditLogModel(
+    final map = <String, AuditLogModel>{
+      for (final data in docs)
+        data['id'] as String: AuditLogModel(
           id: data['id'] as String,
           timestamp: data['timestamp'] as DateTime? ?? DateTime.now(),
           userId: data['userId'] as String? ?? '',
@@ -59,7 +68,7 @@ class AuditRepository {
           action: data['action'] as String? ?? '',
           details: data['details'] as String?,
         ),
-      );
-    }
+    };
+    _cache.replaceAll(map);
   }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:unified_esc_pos_printer/unified_esc_pos_printer.dart' as usb_printer;
+
 import '../../core/constants/app_sizes.dart';
 import '../../core/providers.dart';
 import '../../core/services/toast_service.dart';
@@ -21,7 +23,10 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
   late final TextEditingController _addressCtrl;
   late final TextEditingController _portCtrl;
   late PrinterPaperWidth _paperWidth;
+  String? _deviceName;
   bool _testing = false;
+  bool _scanningUsb = false;
+  bool _autoDetecting = false;
 
   @override
   void initState() {
@@ -31,6 +36,7 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
     _addressCtrl = TextEditingController(text: config.address ?? '');
     _portCtrl = TextEditingController(text: (config.port ?? 9100).toString());
     _paperWidth = config.paperWidth;
+    _deviceName = config.deviceName;
   }
 
   @override
@@ -45,9 +51,92 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
           connectionType: _type,
           address: _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
           port: int.tryParse(_portCtrl.text.trim()) ?? 9100,
+          deviceName: _deviceName,
           paperWidth: _paperWidth,
         ));
     ToastService.success('Configuration imprimante enregistrée');
+  }
+
+  Future<void> _scanUsbPrinters() async {
+    setState(() => _scanningUsb = true);
+    try {
+      final service = ref.read(thermalPrinterServiceProvider);
+      final devices = await service.scanUsbPrinters();
+      if (!mounted) return;
+      if (devices.isEmpty) {
+        ToastService.error('Aucune imprimante USB détectée. Vérifiez le branchement.');
+        return;
+      }
+      final selected = await showDialog<usb_printer.UsbPrinterDevice>(
+        context: context,
+        builder: (context) => SimpleDialog(
+          title: const Text('Imprimantes USB détectées'),
+          children: [
+            for (final d in devices)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(context, d),
+                child: Text('${d.name} (${d.identifier})'),
+              ),
+          ],
+        ),
+      );
+      if (selected != null) {
+        setState(() {
+          _addressCtrl.text = selected.identifier;
+          _deviceName = selected.name;
+        });
+      }
+    } catch (e) {
+      ToastService.error(e.toString());
+    } finally {
+      if (mounted) setState(() => _scanningUsb = false);
+    }
+  }
+
+  /// Sonde dans l'ordre les transports qui n'exigent aucune saisie manuelle
+  /// (pilote imprimante intégré type MobiPrint, puis imprimante USB
+  /// branchée) plutôt que de forcer l'admin à connaître d'avance le type de
+  /// terminal. Réseau et Sunmi restent à sélectionner à la main (aucune
+  /// méthode de détection fiable sans configuration côté app).
+  Future<void> _autoDetect() async {
+    setState(() => _autoDetecting = true);
+    try {
+      final service = ref.read(thermalPrinterServiceProvider);
+      if (!kIsWeb && await service.isMobiPrintAvailable()) {
+        if (!mounted) return;
+        setState(() {
+          _type = PrinterConnectionType.mobiPrintIntegrated;
+          _addressCtrl.clear();
+          _deviceName = null;
+        });
+        await _save();
+        if (mounted) ToastService.success('Imprimante intégrée détectée et configurée.');
+        return;
+      }
+      if (!kIsWeb) {
+        final devices = await service.scanUsbPrinters();
+        if (devices.isNotEmpty) {
+          if (!mounted) return;
+          setState(() {
+            _type = PrinterConnectionType.usb;
+            _addressCtrl.text = devices.first.identifier;
+            _deviceName = devices.first.name;
+          });
+          await _save();
+          if (mounted) ToastService.success('Imprimante USB détectée et configurée : ${devices.first.name}');
+          return;
+        }
+      }
+      if (mounted) {
+        ToastService.error(
+          'Aucune imprimante détectée automatiquement. Configurez Réseau ou Sunmi manuellement ci-dessous.',
+        );
+      }
+    } catch (e) {
+      if (mounted) ToastService.error(e.toString());
+    } finally {
+      if (mounted) setState(() => _autoDetecting = false);
+    }
   }
 
   Future<void> _testPrint() async {
@@ -56,8 +145,7 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
       await _save();
       final company = ref.read(settingsRepositoryProvider).company;
       final service = ref.read(thermalPrinterServiceProvider);
-      final bytes = await service.buildTestTicket(company);
-      await service.printBytes(bytes);
+      await service.printTestTicket(company);
       ToastService.success('Test d\'impression envoyé');
     } catch (e) {
       ToastService.error(e.toString());
@@ -88,6 +176,27 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
                       "(USB/Réseau bas niveau non accessibles). Utilisez l'application mobile ou desktop pour imprimer.",
                     ),
                   ),
+                if (!kIsWeb) ...[
+                  FilledButton.icon(
+                    onPressed: _autoDetecting ? null : _autoDetect,
+                    icon: _autoDetecting
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.auto_fix_high),
+                    label: Text(_autoDetecting ? 'Détection en cours...' : 'Détection automatique'),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(top: AppSizes.xs, bottom: AppSizes.md),
+                    child: Text(
+                      'Essaie de trouver et configurer automatiquement l\'imprimante de ce terminal '
+                      '(intégrée ou USB). Sinon, configurez manuellement ci-dessous.',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  ),
+                ],
                 DropdownButtonFormField<PrinterConnectionType?>(
                   initialValue: _type,
                   decoration: const InputDecoration(labelText: 'Type de connexion'),
@@ -99,16 +208,21 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
                       value: PrinterConnectionType.sunmiIntegrated,
                       child: Text('Imprimante intégrée (terminal Sunmi)'),
                     ),
+                    DropdownMenuItem(
+                      value: PrinterConnectionType.mobiPrintIntegrated,
+                      child: Text('Imprimante intégrée (autre terminal)'),
+                    ),
                   ],
                   onChanged: (v) => setState(() => _type = v),
                 ),
                 if (_type != null) ...[
-                  if (_type != PrinterConnectionType.sunmiIntegrated) ...[
+                  if (_type != PrinterConnectionType.sunmiIntegrated &&
+                      _type != PrinterConnectionType.mobiPrintIntegrated) ...[
                     const SizedBox(height: AppSizes.sm),
                     TextField(
                       controller: _addressCtrl,
                       decoration: InputDecoration(
-                        labelText: _type == PrinterConnectionType.network ? 'Adresse IP' : 'Chemin USB',
+                        labelText: _type == PrinterConnectionType.network ? 'Adresse IP' : 'Identifiant USB',
                       ),
                     ),
                   ],
@@ -120,21 +234,51 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
                       keyboardType: TextInputType.number,
                     ),
                   ],
-                  if (_type == PrinterConnectionType.usb)
+                  if (_type == PrinterConnectionType.usb) ...[
                     const Padding(
                       padding: EdgeInsets.only(top: AppSizes.xs),
                       child: Text(
-                        "L'impression USB directe n'est pas encore disponible dans cette version. "
-                        'Utilisez une connexion Réseau en attendant.',
-                        style: TextStyle(color: Colors.orange, fontSize: 12),
+                        'Fonctionne avec la plupart des imprimantes thermiques USB — y compris '
+                        "l'imprimante intégrée de nombreux terminaux Android tout-en-un (hors Sunmi, "
+                        'voir ci-dessus). Branchez/allumez l\'imprimante puis détectez-la.',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                     ),
+                    if (!kIsWeb) ...[
+                      const SizedBox(height: AppSizes.xs),
+                      OutlinedButton.icon(
+                        onPressed: _scanningUsb ? null : _scanUsbPrinters,
+                        icon: _scanningUsb
+                            ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.usb),
+                        label: Text(_scanningUsb ? 'Détection en cours...' : 'Détecter une imprimante USB'),
+                      ),
+                      if (_deviceName != null && _deviceName!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: AppSizes.xs),
+                          child: Text(
+                            'Sélectionnée : $_deviceName',
+                            style: const TextStyle(color: Colors.grey, fontSize: 12),
+                          ),
+                        ),
+                    ],
+                  ],
                   if (_type == PrinterConnectionType.sunmiIntegrated)
                     const Padding(
                       padding: EdgeInsets.only(top: AppSizes.xs),
                       child: Text(
                         'Rien à saisir : les reçus sont envoyés directement à l\'imprimante '
                         "intégrée de ce terminal. Fonctionne uniquement sur un appareil Sunmi.",
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    ),
+                  if (_type == PrinterConnectionType.mobiPrintIntegrated)
+                    const Padding(
+                      padding: EdgeInsets.only(top: AppSizes.xs),
+                      child: Text(
+                        'Rien à saisir : pour les terminaux Android sans SDK ni USB standard '
+                        '(ex. MobiPrint 3+ / Mobilot MP3+). Texte simple uniquement (pas de mise '
+                        'en forme avancée). Utilisez plutôt « Détection automatique » ci-dessus.',
                         style: TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                     ),

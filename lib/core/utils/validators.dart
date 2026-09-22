@@ -16,6 +16,12 @@ class Validators {
     return null;
   }
 
+  static String? requiredEmail(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Email requis';
+    if (!EmailValidator.validate(value.trim())) return 'Email invalide';
+    return null;
+  }
+
   static String? password(String? value) {
     if (value == null || value.isEmpty) return 'Mot de passe requis';
     if (value.length < 8) {
