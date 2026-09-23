@@ -1,39 +1,48 @@
 package com.maindivine.main_divine_multiservices
 
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.os.DeadObjectException
+import android.os.IBinder
+import com.mobiwire.printraw.PrintIOInterface
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import java.io.File
-import java.io.FileOutputStream
-import java.io.RandomAccessFile
-import java.nio.charset.Charset
 
 /**
- * Pont vers le pilote imprimante intégré de certains terminaux Android bas
- * de gamme sans SDK ni service AIDL (constaté sur MobiWire MobiPrint 3+ /
- * "Mobilot MP3+") : le pilote noyau attend un fichier de commande texte
- * déposé sur le disque, puis un signal écrit dans le pseudo-fichier
- * /proc/printer pour déclencher l'impression. Ce mécanisme est propre au
- * pilote noyau de ce type de terminal (rien à voir avec ESC/POS), d'où un
- * canal dédié plutôt qu'une réutilisation du flux d'octets ESC/POS
- * existant (voir ThermalPrinterService._printMobiPrintText côté Dart).
+ * Pont vers le vrai service système d'impression de certains terminaux
+ * Android bas de gamme sans SDK ESC/POS public (constaté sur MobiWire
+ * MobiPrint 3+ / "Mobilot MP3+", package système `com.mobiwire.printraw` /
+ * service `.PrintRawIOService`) : aucun SDK public n'étant documenté par le
+ * fabricant, cette interface AIDL a été reconstruite en analysant le
+ * bytecode dex du service réel installé sur l'appareil (voir
+ * android/app/src/main/aidl/com/mobiwire/printraw/PrintIOInterface.aidl —
+ * l'ORDRE des méthodes y a été préservé à l'identique de l'original, ce qui
+ * est indispensable : AIDL numérote les transactions Binder par ordre de
+ * déclaration, pas par nom).
  *
- * Accès à /data/media et /proc/printer : ces chemins ne sont normalement
- * pas accessibles à une app sandboxée sur Android récent (SELinux). Ce
- * canal ne fonctionne donc que sur un firmware OEM qui les rend
- * délibérément accessibles aux apps tierces (le cas visé ici) — sinon
- * [isAvailable] renvoie simplement false.
+ * Un ancien mécanisme (fichier de commande + /proc/printer, voir
+ * l'historique git) écrivait directement sur le disque : il échouait
+ * systématiquement ("Permission denied") sur le firmware actuel de ce
+ * terminal, /data/media n'étant plus accessible à une app tierce sur
+ * Android récent (restriction Unix de base, pas du scoped storage
+ * contournable). Le vrai canal, confirmé par un test d'impression réussi
+ * depuis les paramètres système du terminal, passe par ce service.
  */
-class MobiPrintChannel(messenger: BinaryMessenger) : MethodChannel.MethodCallHandler {
+class MobiPrintChannel(messenger: BinaryMessenger, private val context: Context) : MethodChannel.MethodCallHandler {
     companion object {
         private const val CHANNEL = "main_divine_multiservices/mobiprint"
-        private const val PROC_PRINTER = "/proc/printer"
-        private const val DATA_FILE_PREFIX = "/data/media/printer"
-        private const val DATA_FILE_EXT = ".bin"
+        private const val SERVICE_PACKAGE = "com.mobiwire.printraw"
+        private const val SERVICE_ACTION = "sagereal.intent.action.CONN_PRINTIO_SERVICE_AIDL"
     }
 
     private val channel = MethodChannel(messenger, CHANNEL)
-    private var targetIndex = 0
+    private var service: PrintIOInterface? = null
+    private var connection: ServiceConnection? = null
+    private var bindInFlight = false
+    private val pendingCallbacks = mutableListOf<(PrintIOInterface?) -> Unit>()
 
     init {
         channel.setMethodCallHandler(this)
@@ -41,59 +50,108 @@ class MobiPrintChannel(messenger: BinaryMessenger) : MethodChannel.MethodCallHan
 
     fun dispose() {
         channel.setMethodCallHandler(null)
+        resetConnection()
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "isAvailable" -> result.success(isAvailable())
-            "printText" -> {
-                val text = call.argument<String>("text") ?: ""
-                val size = (call.argument<Int>("size") ?: 1).coerceIn(1, 4)
-                try {
-                    printText(text, size)
-                    result.success(null)
-                } catch (e: Exception) {
-                    result.error("MOBIPRINT_ERROR", e.message, null)
-                }
+            "printBytes" -> {
+                @Suppress("UNCHECKED_CAST")
+                val bytes = (call.argument<List<Int>>("bytes") ?: emptyList()).map { it.toByte() }.toByteArray()
+                print(bytes, result, retriesLeft = 1)
             }
             else -> result.notImplemented()
         }
     }
 
-    /** Sonde la disponibilité réelle du pilote plutôt que de se fier au nom de l'appareil. */
+    private fun print(bytes: ByteArray, result: MethodChannel.Result, retriesLeft: Int) {
+        withService { svc ->
+            if (svc == null) {
+                result.error("MOBIPRINT_ERROR", "Service d'impression introuvable ou indisponible.", null)
+                return@withService
+            }
+            try {
+                svc.powerOn(true)
+                svc.transmit(bytes, bytes.size)
+                result.success(null)
+            } catch (e: DeadObjectException) {
+                // Le service a redémarré depuis la connexion : le lien en cache est mort.
+                resetConnection()
+                if (retriesLeft > 0) {
+                    print(bytes, result, retriesLeft - 1)
+                } else {
+                    result.error("MOBIPRINT_ERROR", "Service d'impression indisponible (redémarrage en cours).", null)
+                }
+            } catch (e: Exception) {
+                result.error("MOBIPRINT_ERROR", "${e.javaClass.simpleName} - ${e.message}", null)
+            }
+        }
+    }
+
+    private fun resetConnection() {
+        connection?.let {
+            try {
+                context.unbindService(it)
+            } catch (_: Exception) {
+            }
+        }
+        connection = null
+        service = null
+        bindInFlight = false
+    }
+
+    /** Résolution du service (rapide, synchrone) — pas de connexion active nécessaire. */
     private fun isAvailable(): Boolean {
-        return try {
-            RandomAccessFile(PROC_PRINTER, "r").use { it.read(ByteArray(4)) }
-            true
+        val intent = Intent(SERVICE_ACTION).apply { setPackage(SERVICE_PACKAGE) }
+        return context.packageManager.resolveService(intent, 0) != null
+    }
+
+    /**
+     * Fournit l'interface connectée à [callback], en la liant à la demande.
+     * Ne bloque jamais le thread appelant (le binding Android est
+     * intrinsèquement asynchrone — bloquer en attendant onServiceConnected
+     * depuis le thread principal provoquerait un blocage permanent, ce
+     * callback étant lui-même distribué sur ce même thread).
+     */
+    private fun withService(callback: (PrintIOInterface?) -> Unit) {
+        service?.let { callback(it); return }
+        synchronized(pendingCallbacks) { pendingCallbacks.add(callback) }
+        if (bindInFlight) return
+        bindInFlight = true
+
+        val conn = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+                service = PrintIOInterface.Stub.asInterface(binder)
+                bindInFlight = false
+                flushPending()
+            }
+
+            override fun onServiceDisconnected(name: ComponentName?) {
+                service = null
+            }
+        }
+        connection = conn
+
+        val intent = Intent(SERVICE_ACTION).apply { setPackage(SERVICE_PACKAGE) }
+        val bound = try {
+            context.bindService(intent, conn, Context.BIND_AUTO_CREATE)
         } catch (e: Exception) {
             false
         }
-    }
-
-    private fun printText(text: String, size: Int) {
-        val header = byteArrayOf(
-            29, 96,
-            'P'.code.toByte(), 'R'.code.toByte(), 'I'.code.toByte(), 'N'.code.toByte(), 'T'.code.toByte(),
-            1, size.toByte(), 0,
-        )
-        val encoded = text.toByteArray(Charset.forName("UTF-16"))
-        // UTF-16 avec BOM (2 premiers octets) — le pilote attend le texte sans BOM.
-        val body = if (encoded.size > 2) encoded.copyOfRange(2, encoded.size) else encoded
-        val path = nextDataFile()
-        FileOutputStream(path).use { fos ->
-            fos.write(header)
-            fos.write(body)
-        }
-        FileOutputStream(PROC_PRINTER).use { fos ->
-            fos.write(path.toByteArray())
+        if (!bound) {
+            bindInFlight = false
+            connection = null
+            flushPending()
         }
     }
 
-    private fun nextDataFile(): String {
-        val path = "$DATA_FILE_PREFIX$targetIndex$DATA_FILE_EXT"
-        targetIndex = (targetIndex + 1) % 50
-        val file = File(path)
-        if (file.exists()) file.delete()
-        return path
+    private fun flushPending() {
+        val callbacks = synchronized(pendingCallbacks) {
+            val list = pendingCallbacks.toList()
+            pendingCallbacks.clear()
+            list
+        }
+        callbacks.forEach { it(service) }
     }
 }

@@ -1,11 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:unified_esc_pos_printer/unified_esc_pos_printer.dart' as usb_printer;
 
 import '../../core/constants/app_sizes.dart';
 import '../../core/providers.dart';
+import '../../core/services/device_diagnostics_channel.dart';
 import '../../core/services/toast_service.dart';
 import '../../data/models/enums.dart';
 import '../../data/models/printer_config_model.dart';
@@ -27,6 +29,7 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
   bool _testing = false;
   bool _scanningUsb = false;
   bool _autoDetecting = false;
+  bool _diagnosing = false;
 
   @override
   void initState() {
@@ -93,10 +96,14 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
     }
   }
 
-  /// Sonde dans l'ordre les transports qui n'exigent aucune saisie manuelle
-  /// (pilote imprimante intégré type MobiPrint, puis imprimante USB
-  /// branchée) plutôt que de forcer l'admin à connaître d'avance le type de
-  /// terminal. Réseau et Sunmi restent à sélectionner à la main (aucune
+  /// Sonde dans l'ordre les transports qui n'exigent aucune saisie manuelle.
+  /// MobiPrint en premier : sur les terminaux tout-en-un bas de gamme sans
+  /// SDK public (ex. Mobilot MP3+), le module thermique intégré n'est pas
+  /// exposé comme périphérique USB standard (confirmé : scan USB vide sur
+  /// ce type de terminal) — seul le service système propriétaire du
+  /// fabricant fonctionne (voir android/.../MobiPrintChannel.kt). USB reste
+  /// la détection de secours pour les autres terminaux tout-en-un
+  /// génériques. Réseau et Sunmi restent à sélectionner à la main (aucune
   /// méthode de détection fiable sans configuration côté app).
   Future<void> _autoDetect() async {
     setState(() => _autoDetecting = true);
@@ -136,6 +143,53 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
       if (mounted) ToastService.error(e.toString());
     } finally {
       if (mounted) setState(() => _autoDetecting = false);
+    }
+  }
+
+  /// Recueille des infos concrètes sur le terminal (au lieu de deviner à
+  /// l'aveugle après un nouvel échec) : périphériques USB bruts vus par le
+  /// noyau (même hors classe imprimante standard), apps système du
+  /// fabricant qui pourraient être son vrai service d'impression, et le
+  /// détail exact (classe d'exception + message) de l'échec d'écriture
+  /// MobiPrint sur plusieurs chemins candidats.
+  Future<void> _runDiagnostic() async {
+    setState(() => _diagnosing = true);
+    try {
+      final usb = await DeviceDiagnosticsChannel.usbDevices();
+      final packages = await DeviceDiagnosticsChannel.printPackages();
+      final mobiPrint = await DeviceDiagnosticsChannel.mobiPrintDebug();
+      final report = StringBuffer()
+        ..writeln('=== Périphériques USB (bruts) ===')
+        ..writeln(usb.join('\n'))
+        ..writeln()
+        ..writeln('=== Apps système candidates (service d\'impression) ===')
+        ..writeln(packages.join('\n'))
+        ..writeln()
+        ..writeln('=== Test d\'écriture MobiPrint ===')
+        ..writeln(mobiPrint.join('\n'));
+      final text = report.toString();
+      await Clipboard.setData(ClipboardData(text: text));
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Diagnostic imprimante'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: SelectableText(text, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fermer')),
+          ],
+        ),
+      );
+      if (mounted) ToastService.success('Diagnostic copié dans le presse-papiers');
+    } catch (e) {
+      if (mounted) ToastService.error(e.toString());
+    } finally {
+      if (mounted) setState(() => _diagnosing = false);
     }
   }
 
@@ -277,8 +331,8 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
                       padding: EdgeInsets.only(top: AppSizes.xs),
                       child: Text(
                         'Rien à saisir : pour les terminaux Android sans SDK ni USB standard '
-                        '(ex. MobiPrint 3+ / Mobilot MP3+). Texte simple uniquement (pas de mise '
-                        'en forme avancée). Utilisez plutôt « Détection automatique » ci-dessus.',
+                        '(ex. MobiPrint 3+ / Mobilot MP3+). Utilisez plutôt « Détection automatique » '
+                        'ci-dessus.',
                         style: TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                     ),
@@ -303,6 +357,25 @@ class _PrinterSettingsScreenState extends ConsumerState<PrinterSettingsScreen> {
                       : const Icon(Icons.print_outlined),
                   label: const Text("Test d'impression"),
                 ),
+                if (!kIsWeb) ...[
+                  const SizedBox(height: AppSizes.sm),
+                  OutlinedButton.icon(
+                    onPressed: _diagnosing ? null : _runDiagnostic,
+                    icon: _diagnosing
+                        ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.bug_report_outlined),
+                    label: Text(_diagnosing ? 'Diagnostic en cours...' : 'Diagnostic imprimante'),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(top: AppSizes.xs),
+                    child: Text(
+                      "En cas d'échec persistant : récupère la liste des périphériques USB bruts, "
+                      "des apps système susceptibles d'être le vrai pilote du fabricant, et le détail "
+                      "exact de l'erreur d'écriture — copié dans le presse-papiers, à envoyer pour analyse.",
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

@@ -44,6 +44,14 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
   ProductCategory? _filter;
   String _query = '';
 
+  /// Recharge le catalogue depuis Firestore (seule base de données) —
+  /// utile car les données ne se resynchronisent plus automatiquement en
+  /// continu, seulement au login ou après une mutation locale.
+  Future<void> _refresh() async {
+    await ref.read(productRepositoryProvider).pullFromFirestore();
+    ref.read(dataRevisionProvider.notifier).state++;
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider)!;
@@ -58,6 +66,11 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
     return AppShell(
       title: 'Catalogue produits',
       actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          tooltip: 'Actualiser',
+          onPressed: _refresh,
+        ),
         PermissionGate(
           permission: Permission.productsCreateEdit,
           child: IconButton(
@@ -106,22 +119,32 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
             ),
           ),
           Expanded(
-            child: products.isEmpty
-                ? const EmptyState(
-                    icon: Icons.inventory_2_outlined,
-                    title: 'Aucun produit',
-                    message: 'Ajoutez votre premier produit pour commencer à vendre.',
-                  )
-                : GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(AppSizes.md, 0, AppSizes.md, AppSizes.md),
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 260,
-                      mainAxisExtent: 210,
-                      crossAxisSpacing: AppSizes.sm,
-                      mainAxisSpacing: AppSizes.sm,
-                    ),
-                    itemCount: products.length,
-                    itemBuilder: (context, i) {
+            child: RefreshIndicator(
+              onRefresh: _refresh,
+              child: products.isEmpty
+                  ? LayoutBuilder(
+                      builder: (context, constraints) => SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                          child: const EmptyState(
+                            icon: Icons.inventory_2_outlined,
+                            title: 'Aucun produit',
+                            message: 'Ajoutez votre premier produit pour commencer à vendre.',
+                          ),
+                        ),
+                      ),
+                    )
+                  : GridView.builder(
+                      padding: const EdgeInsets.fromLTRB(AppSizes.md, 0, AppSizes.md, AppSizes.md),
+                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 260,
+                        mainAxisExtent: 210,
+                        crossAxisSpacing: AppSizes.sm,
+                        mainAxisSpacing: AppSizes.sm,
+                      ),
+                      itemCount: products.length,
+                      itemBuilder: (context, i) {
                       final p = products[i];
                       return Card(
                         child: InkWell(
@@ -173,6 +196,7 @@ class _ProductsListScreenState extends ConsumerState<ProductsListScreen> {
                       );
                     },
                   ),
+            ),
           ),
         ],
       ),

@@ -68,7 +68,7 @@ class SettingsRepository {
     final data = await _sync.pullDoc(_collection, _companyKey);
     if (data == null) return;
     _company = CompanySettingsModel(
-      name: data['name'] as String? ?? 'MAIN DIVINE MULTISERVICES',
+      name: data['name'] as String? ?? 'MAIN DIVINE MULTI-SERVICES',
       slogan: data['slogan'] as String?,
       phone: data['phone'] as String?,
       address: data['address'] as String?,

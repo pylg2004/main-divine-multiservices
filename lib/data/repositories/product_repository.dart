@@ -70,13 +70,20 @@ class ProductRepository {
     if (color != null) product.color = color.trim();
     if (active != null) product.active = active;
     if (discountEligible != null) product.discountEligible = discountEligible;
+    if (product.stock <= 0) product.active = false;
     unawaited(_pushToFirestore(product));
   }
 
+  /// Décrémente/réintègre le stock (vente/annulation). Un produit dont le
+  /// stock retombe à zéro est automatiquement désactivé — il disparaît
+  /// alors du catalogue de vente (déjà filtré sur `active`), donc les
+  /// vendeurs n'y ont plus accès tant qu'un admin ne l'a pas réactivé
+  /// (après réapprovisionnement) depuis la fiche produit.
   Future<void> adjustStock(String productId, double delta) async {
     final product = byId(productId);
     if (product == null) return;
     product.stock += delta;
+    if (product.stock <= 0) product.active = false;
     unawaited(_pushToFirestore(product));
   }
 

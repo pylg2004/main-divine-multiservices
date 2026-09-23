@@ -10,7 +10,7 @@ class CompanySettingsModel {
   bool setupComplete;
 
   CompanySettingsModel({
-    this.name = 'MAIN DIVINE MULTISERVICES',
+    this.name = 'MAIN DIVINE MULTI-SERVICES',
     this.slogan,
     this.phone,
     this.address,

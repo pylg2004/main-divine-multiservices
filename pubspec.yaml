@@ -58,6 +58,10 @@ dependencies:
   firebase_auth: ^6.1.0
   sunmi_printer_plus: ^4.1.1
   unified_esc_pos_printer: ^3.4.0
+  # Décodage/redimensionnement du logo pour l'en-tête du reçu imprimé (déjà
+  # tiré transitivement par esc_pos_utils_plus, déclaré ici car importé
+  # directement — voir ThermalPrinterService._loadLogo).
+  image: ^4.10.1
 
 dev_dependencies:
   flutter_test:

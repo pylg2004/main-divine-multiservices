@@ -2,7 +2,8 @@ import 'dart:io';
 
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show PlatformException;
+import 'package:flutter/services.dart' show PlatformException, rootBundle;
+import 'package:image/image.dart' as img;
 import 'package:sunmi_printer_plus/sunmi_printer_plus.dart';
 import 'package:unified_esc_pos_printer/unified_esc_pos_printer.dart' as usb_printer;
 
@@ -12,6 +13,7 @@ import '../../data/models/enums.dart';
 import '../../data/models/printer_config_model.dart';
 import '../../data/models/sale_model.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../constants/app_strings.dart';
 import '../errors/app_exception.dart';
 import '../utils/date_formatter.dart';
 import '../utils/money_formatter.dart';
@@ -32,10 +34,11 @@ import 'mobiprint_channel.dart';
 /// (sunmi_printer_plus), qui accepte directement les mêmes octets ESC/POS.
 /// Certains terminaux Android bas de gamme sans SDK ni USB standard
 /// (constaté sur MobiWire MobiPrint 3+ / "Mobilot MP3+") exposent leur
-/// imprimante via un pilote noyau texte brut (pas d'ESC/POS) — voir
-/// [MobiPrintChannel] et les méthodes printXxx (printSaleReceipt,
-/// printClientCard...) qui basculent automatiquement vers ce canal texte
-/// au lieu de buildXxx+printBytes quand ce type est configuré.
+/// imprimante via un service système propriétaire (AIDL) au lieu d'USB —
+/// voir [MobiPrintChannel], qui reconstruit l'appel à ce service depuis
+/// [PrinterConnectionType.mobiPrintIntegrated] et accepte directement les
+/// mêmes octets ESC/POS que les autres transports (aucune limitation de
+/// mise en forme contrairement à l'ancien protocole texte brut).
 ///
 /// Limitation assumée : un navigateur web ne peut ouvrir ni socket TCP brut,
 /// ni connexion USB. Sur Flutter web, [printBytes] échoue donc toujours avec
@@ -52,43 +55,78 @@ class ThermalPrinterService {
     return Generator(paper, profile);
   }
 
+  /// Crée un générateur et bascule explicitement l'imprimante sur la table
+  /// de caractères CP1252 (couvre tous les accents français : é, è, à, ç,
+  /// ù, ê, ô, î...). Sans ça, l'imprimante reste sur son réglage d'usine
+  /// (CP437 sur la plupart des modèles), qui affiche les accents comme des
+  /// caractères incorrects — le texte Dart est déjà encodé en octets
+  /// latin1 (voir Generator.codec) : encore faut-il dire à l'imprimante de
+  /// les interpréter avec la bonne table, d'où cet appel.
+  Future<(Generator, List<int>)> _newTicket() async {
+    final g = await _generator();
+    final bytes = <int>[...g.setGlobalCodeTable('CP1252')];
+    return (g, bytes);
+  }
+
   String _money(num amount, CompanySettingsModel company) =>
       MoneyFormatter.format(amount, symbol: company.currencySymbol);
 
+  img.Image? _logoCache;
+
+  /// Charge et redimensionne le logo de l'entreprise (même asset que le
+  /// reste de l'app — voir AppStrings.logoAssetPath) pour l'en-tête du
+  /// reçu. Mis en cache après le premier chargement. Retourne `null` en
+  /// cas d'échec (asset manquant/corrompu) plutôt que de faire échouer
+  /// toute l'impression — le ticket s'imprime alors sans logo.
+  Future<img.Image?> _loadLogo() async {
+    if (_logoCache != null) return _logoCache;
+    try {
+      final data = await rootBundle.load(AppStrings.logoAssetPath);
+      final decoded = img.decodeImage(data.buffer.asUint8List());
+      if (decoded == null) return null;
+      // Largeur raisonnable pour un ticket thermique (mm58 = 384px max).
+      final resized = decoded.width > 220 ? img.copyResize(decoded, width: 220) : decoded;
+      _logoCache = resized;
+      return resized;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ─────────────────────────── Tickets de vente ───────────────────────────
-  // Couvre les 3 formats du spec §9 (POS / Beauté / Mixte) : la structure
-  // est identique, seuls l'en-tête, le libellé de colonne et le pied
-  // changent selon le poste de la vente.
+  // Mise en page classique : en-tête entreprise (nom, adresse, téléphone),
+  // infos de la vente, tableau Article/Qté/Total, totaux, formule de
+  // politesse — identique quel que soit le poste (spec §9).
   Future<List<int>> buildSaleReceipt({
     required SaleModel sale,
     required CompanySettingsModel company,
   }) async {
-    final g = await _generator();
-    List<int> bytes = [];
+    final (g, initial) = await _newTicket();
+    List<int> bytes = initial;
 
-    final isPos = sale.workstation == Workstation.pos;
     final isBeauty = sale.workstation == Workstation.beauty;
-    final isImpression = sale.workstation == Workstation.impression;
-    final isSinglePoste = isPos || isBeauty || isImpression;
+    final isSinglePoste = sale.workstation == Workstation.pos ||
+        isBeauty ||
+        sale.workstation == Workstation.impression;
 
+    // ── En-tête ──
+    final logo = await _loadLogo();
+    if (logo != null) {
+      bytes += g.imageRaster(logo, align: PosAlign.center);
+    }
     bytes += g.text(
       company.name,
       styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2),
     );
-    if (isPos) {
-      bytes += g.text('Papeterie · Livres · Tissus', styles: const PosStyles(align: PosAlign.center));
-    } else if (isBeauty) {
-      bytes += g.text('STUDIO DE BEAUTÉ', styles: const PosStyles(align: PosAlign.center));
-    } else if (isImpression) {
-      bytes += g.text('SERVICES D\'IMPRESSION', styles: const PosStyles(align: PosAlign.center));
-    } else {
-      bytes += g.text('Papeterie · Beauté · Impression', styles: const PosStyles(align: PosAlign.center));
+    if (company.address != null && company.address!.isNotEmpty) {
+      bytes += g.text(company.address!, styles: const PosStyles(align: PosAlign.center));
     }
     if (company.phone != null && company.phone!.isNotEmpty) {
       bytes += g.text('Tél: ${company.phone}', styles: const PosStyles(align: PosAlign.center));
     }
     bytes += g.hr();
 
+    // ── Infos de la vente ──
     bytes += g.text('Reçu N°: ${sale.id}');
     bytes += g.text('Date: ${DateFormatter.dateTime(sale.date)}');
     bytes += g.text('Client: ${sale.clientName}');
@@ -98,8 +136,9 @@ class ThermalPrinterService {
     );
     bytes += g.hr();
 
+    // ── Articles ──
     bytes += g.row([
-      PosColumn(text: isBeauty || isImpression ? 'Service' : 'Article', width: 6),
+      PosColumn(text: 'Article', width: 6),
       PosColumn(text: 'Qté', width: 2, styles: const PosStyles(align: PosAlign.center)),
       PosColumn(text: 'Total', width: 4, styles: const PosStyles(align: PosAlign.right)),
     ]);
@@ -117,6 +156,7 @@ class ThermalPrinterService {
     }
     bytes += g.hr();
 
+    // ── Totaux ──
     bytes += g.row([
       PosColumn(text: 'Sous-total', width: 8),
       PosColumn(text: _money(sale.subtotal, company), width: 4, styles: const PosStyles(align: PosAlign.right)),
@@ -137,66 +177,19 @@ class ThermalPrinterService {
     ]);
     bytes += g.text('Paiement: ${_paymentLabel(sale.paymentMethod)}');
     bytes += g.hr();
-    bytes += g.text(
-      isBeauty ? 'Merci de votre confiance !' : 'Merci de votre visite !',
-      styles: const PosStyles(align: PosAlign.center),
-    );
+
+    // ── Formule de politesse ──
+    bytes += g.text('Merci de votre visite.', styles: const PosStyles(align: PosAlign.center));
+    bytes += g.text('À bientôt !', styles: const PosStyles(align: PosAlign.center, bold: true));
     bytes += g.feed(2);
     bytes += g.cut();
     return bytes;
   }
 
-  /// Point d'entrée unique pour imprimer un reçu de vente : bascule vers le
-  /// canal texte MobiPrint si configuré (celui-ci ne comprend pas l'ESC/POS
-  /// des [buildSaleReceipt]), sinon flux ESC/POS classique. Les écrans
-  /// appelants utilisent cette méthode plutôt que build+printBytes
-  /// directement pour ne pas avoir à connaître ce détail de transport.
+  /// Point d'entrée unique pour imprimer un reçu de vente (flux ESC/POS,
+  /// quel que soit le transport configuré — voir [printBytes]).
   Future<void> printSaleReceipt({required SaleModel sale, required CompanySettingsModel company}) async {
-    if (_isMobiPrint) {
-      await _printMobiPrintText(_saleReceiptText(sale: sale, company: company));
-      return;
-    }
     await printBytes(await buildSaleReceipt(sale: sale, company: company));
-  }
-
-  String _saleReceiptText({required SaleModel sale, required CompanySettingsModel company}) {
-    final isPos = sale.workstation == Workstation.pos;
-    final isBeauty = sale.workstation == Workstation.beauty;
-    final isImpression = sale.workstation == Workstation.impression;
-    final isSinglePoste = isPos || isBeauty || isImpression;
-
-    final b = StringBuffer();
-    b.writeln(company.name);
-    if (isPos) {
-      b.writeln('Papeterie . Livres . Tissus');
-    } else if (isBeauty) {
-      b.writeln('STUDIO DE BEAUTE');
-    } else if (isImpression) {
-      b.writeln("SERVICES D'IMPRESSION");
-    } else {
-      b.writeln('Papeterie . Beaute . Impression');
-    }
-    if (company.phone != null && company.phone!.isNotEmpty) b.writeln('Tel: ${company.phone}');
-    b.writeln(_hrText());
-    b.writeln('Recu N: ${sale.id}');
-    b.writeln('Date: ${DateFormatter.dateTime(sale.date)}');
-    b.writeln('Client: ${sale.clientName}');
-    if (sale.clientPhone.isNotEmpty) b.writeln('Tel: ${sale.clientPhone}');
-    b.writeln('Servi par: ${sale.sellerName}${isSinglePoste ? '' : ' (${sale.workstation.name})'}');
-    b.writeln(_hrText());
-    for (final item in sale.items) {
-      b.writeln(item.title);
-      final qty = QtyFormatter.format(item.qty, fractional: QtyFormatter.isFractionalUnit(item.unit));
-      b.writeln(_padCols('  x$qty', _money(item.sum, company)));
-    }
-    b.writeln(_hrText());
-    b.writeln(_padCols('Sous-total', _money(sale.subtotal, company)));
-    if (sale.discount > 0) b.writeln(_padCols('Remise', '-${_money(sale.discount, company)}'));
-    b.writeln(_padCols('TOTAL', _money(sale.total, company)));
-    b.writeln('Paiement: ${_paymentLabel(sale.paymentMethod)}');
-    b.writeln(_hrText());
-    b.writeln(isBeauty ? 'Merci de votre confiance !' : 'Merci de votre visite !');
-    return b.toString();
   }
 
   // ─────────────────────────── Fiche client ───────────────────────────
@@ -205,8 +198,8 @@ class ThermalPrinterService {
     required CompanySettingsModel company,
     required List<SaleModel> recentSales,
   }) async {
-    final g = await _generator();
-    List<int> bytes = [];
+    final (g, initial) = await _newTicket();
+    List<int> bytes = initial;
     bytes += g.text(company.name, styles: const PosStyles(align: PosAlign.center, bold: true));
     bytes += g.text('FICHE CLIENT', styles: const PosStyles(align: PosAlign.center));
     bytes += g.hr();
@@ -245,43 +238,7 @@ class ThermalPrinterService {
     required CompanySettingsModel company,
     required List<SaleModel> recentSales,
   }) async {
-    if (_isMobiPrint) {
-      await _printMobiPrintText(_clientCardText(client: client, company: company, recentSales: recentSales));
-      return;
-    }
     await printBytes(await buildClientCard(client: client, company: company, recentSales: recentSales));
-  }
-
-  String _clientCardText({
-    required ClientModel client,
-    required CompanySettingsModel company,
-    required List<SaleModel> recentSales,
-  }) {
-    final b = StringBuffer();
-    b.writeln(company.name);
-    b.writeln('FICHE CLIENT');
-    b.writeln(_hrText());
-    b.writeln('Nom: ${client.fullName}');
-    b.writeln('Tel: ${client.phone}');
-    if (client.email != null && client.email!.isNotEmpty) b.writeln('Email: ${client.email}');
-    b.writeln('Client depuis: ${DateFormatter.date(client.createdAt)}');
-    b.writeln(_hrText());
-    b.writeln('STATISTIQUES');
-    b.writeln('Total depense: ${_money(client.totalSpent, company)}');
-    b.writeln('Points fidelite: ${client.loyaltyPoints}');
-    b.writeln('Nb visites: ${recentSales.length}');
-    if (client.lastVisit != null) b.writeln('Derniere visite: ${DateFormatter.date(client.lastVisit!)}');
-    b.writeln(_hrText());
-    b.writeln('DERNIERES VISITES');
-    for (final sale in recentSales.take(5)) {
-      b.writeln(_padCols(DateFormatter.date(sale.date), _money(sale.total, company)));
-    }
-    if (client.notes != null && client.notes!.isNotEmpty) {
-      b.writeln(_hrText());
-      b.writeln('NOTES / PREFERENCES');
-      b.writeln(client.notes!);
-    }
-    return b.toString();
   }
 
   // ─────────────────────── Rapport de caisse journalier ───────────────────────
@@ -297,8 +254,8 @@ class ThermalPrinterService {
     required Map<PaymentMethod, double> paymentsByMethod,
     required String editedBy,
   }) async {
-    final g = await _generator();
-    List<int> bytes = [];
+    final (g, initial) = await _newTicket();
+    List<int> bytes = initial;
     bytes += g.text(company.name, styles: const PosStyles(align: PosAlign.center, bold: true));
     bytes += g.text('RAPPORT DE CAISSE', styles: const PosStyles(align: PosAlign.center));
     bytes += g.text(periodLabel, styles: const PosStyles(align: PosAlign.center));
@@ -343,21 +300,6 @@ class ThermalPrinterService {
     required Map<PaymentMethod, double> paymentsByMethod,
     required String editedBy,
   }) async {
-    if (_isMobiPrint) {
-      await _printMobiPrintText(_dailyReportText(
-        company: company,
-        periodLabel: periodLabel,
-        posSalesCount: posSalesCount,
-        posRevenue: posRevenue,
-        beautySalesCount: beautySalesCount,
-        beautyRevenue: beautyRevenue,
-        printSalesCount: printSalesCount,
-        printRevenue: printRevenue,
-        paymentsByMethod: paymentsByMethod,
-        editedBy: editedBy,
-      ));
-      return;
-    }
     await printBytes(await buildDailyReport(
       company: company,
       periodLabel: periodLabel,
@@ -370,49 +312,6 @@ class ThermalPrinterService {
       paymentsByMethod: paymentsByMethod,
       editedBy: editedBy,
     ));
-  }
-
-  String _dailyReportText({
-    required CompanySettingsModel company,
-    required String periodLabel,
-    required int posSalesCount,
-    required double posRevenue,
-    required int beautySalesCount,
-    required double beautyRevenue,
-    required int printSalesCount,
-    required double printRevenue,
-    required Map<PaymentMethod, double> paymentsByMethod,
-    required String editedBy,
-  }) {
-    final b = StringBuffer();
-    b.writeln(company.name);
-    b.writeln('RAPPORT DE CAISSE');
-    b.writeln(periodLabel);
-    b.writeln(_hrText());
-    b.writeln('POSTE PAPETERIE / POS');
-    b.writeln('Nb ventes: $posSalesCount');
-    b.writeln('CA: ${_money(posRevenue, company)}');
-    b.writeln(_hrText());
-    b.writeln('POSTE SOINS & BEAUTE');
-    b.writeln('Nb ventes: $beautySalesCount');
-    b.writeln('CA: ${_money(beautyRevenue, company)}');
-    b.writeln(_hrText());
-    b.writeln('POSTE IMPRESSION');
-    b.writeln('Nb ventes: $printSalesCount');
-    b.writeln('CA: ${_money(printRevenue, company)}');
-    b.writeln(_hrText());
-    b.writeln('TOTAL CONSOLIDE');
-    final total = posRevenue + beautyRevenue + printRevenue;
-    b.writeln('CA TOTAL JOUR: ${_money(total, company)}');
-    b.writeln('Nb ventes totales: ${posSalesCount + beautySalesCount + printSalesCount}');
-    b.writeln('Paiements:');
-    b.writeln(' - Especes: ${_money(paymentsByMethod[PaymentMethod.especes] ?? 0, company)}');
-    b.writeln(' - Carte: ${_money(paymentsByMethod[PaymentMethod.carte] ?? 0, company)}');
-    b.writeln(' - Mobile: ${_money(paymentsByMethod[PaymentMethod.mobile] ?? 0, company)}');
-    b.writeln(_hrText());
-    b.writeln('Edite le ${DateFormatter.dateTime(DateTime.now())}');
-    b.writeln('Par: $editedBy');
-    return b.toString();
   }
 
   // ─────────────────────── Rapport personnel (non-admin) ───────────────────────
@@ -428,8 +327,8 @@ class ThermalPrinterService {
     required List<({String title, double qty})> topItems,
     required Map<PaymentMethod, double> paymentsByMethod,
   }) async {
-    final g = await _generator();
-    List<int> bytes = [];
+    final (g, initial) = await _newTicket();
+    List<int> bytes = initial;
     bytes += g.text(company.name, styles: const PosStyles(align: PosAlign.center, bold: true));
     bytes += g.text('MON RAPPORT', styles: const PosStyles(align: PosAlign.center));
     bytes += g.text(periodLabel, styles: const PosStyles(align: PosAlign.center));
@@ -468,18 +367,6 @@ class ThermalPrinterService {
     required List<({String title, double qty})> topItems,
     required Map<PaymentMethod, double> paymentsByMethod,
   }) async {
-    if (_isMobiPrint) {
-      await _printMobiPrintText(_personalReportText(
-        company: company,
-        periodLabel: periodLabel,
-        sellerName: sellerName,
-        salesCount: salesCount,
-        totalRevenue: totalRevenue,
-        topItems: topItems,
-        paymentsByMethod: paymentsByMethod,
-      ));
-      return;
-    }
     await printBytes(await buildPersonalReport(
       company: company,
       periodLabel: periodLabel,
@@ -491,43 +378,9 @@ class ThermalPrinterService {
     ));
   }
 
-  String _personalReportText({
-    required CompanySettingsModel company,
-    required String periodLabel,
-    required String sellerName,
-    required int salesCount,
-    required double totalRevenue,
-    required List<({String title, double qty})> topItems,
-    required Map<PaymentMethod, double> paymentsByMethod,
-  }) {
-    final b = StringBuffer();
-    b.writeln(company.name);
-    b.writeln('MON RAPPORT');
-    b.writeln(periodLabel);
-    b.writeln(_hrText());
-    b.writeln('Employe: $sellerName');
-    b.writeln('Nb ventes: $salesCount');
-    b.writeln('CA TOTAL: ${_money(totalRevenue, company)}');
-    if (topItems.isNotEmpty) {
-      b.writeln(_hrText());
-      b.writeln('TOP ARTICLES/SERVICES');
-      for (final item in topItems) {
-        b.writeln(_padCols(item.title, QtyFormatter.plain(item.qty)));
-      }
-    }
-    b.writeln(_hrText());
-    b.writeln('Paiements:');
-    b.writeln(' - Especes: ${_money(paymentsByMethod[PaymentMethod.especes] ?? 0, company)}');
-    b.writeln(' - Carte: ${_money(paymentsByMethod[PaymentMethod.carte] ?? 0, company)}');
-    b.writeln(' - Mobile: ${_money(paymentsByMethod[PaymentMethod.mobile] ?? 0, company)}');
-    b.writeln(_hrText());
-    b.writeln('Edite le ${DateFormatter.dateTime(DateTime.now())}');
-    return b.toString();
-  }
-
   Future<List<int>> buildTestTicket(CompanySettingsModel company) async {
-    final g = await _generator();
-    List<int> bytes = [];
+    final (g, initial) = await _newTicket();
+    List<int> bytes = initial;
     bytes += g.text(company.name, styles: const PosStyles(align: PosAlign.center, bold: true));
     bytes += g.text('TEST IMPRIMANTE', styles: const PosStyles(align: PosAlign.center));
     bytes += g.hr();
@@ -540,34 +393,8 @@ class ThermalPrinterService {
   }
 
   Future<void> printTestTicket(CompanySettingsModel company) async {
-    if (_isMobiPrint) {
-      await _printMobiPrintText(_testTicketText(company));
-      return;
-    }
     await printBytes(await buildTestTicket(company));
   }
-
-  String _testTicketText(CompanySettingsModel company) {
-    final b = StringBuffer();
-    b.writeln(company.name);
-    b.writeln('TEST IMPRIMANTE');
-    b.writeln(_hrText());
-    b.writeln('Si vous lisez ceci, la connexion');
-    b.writeln("a l'imprimante fonctionne correctement.");
-    b.writeln(DateFormatter.dateTime(DateTime.now()));
-    return b.toString();
-  }
-
-  static const _mobiPrintWidth = 32;
-
-  String _padCols(String left, String right, {int width = _mobiPrintWidth}) {
-    final space = width - right.length;
-    if (space <= 0) return right;
-    final l = left.length >= space ? left.substring(0, space - 1) : left;
-    return l.padRight(space) + right;
-  }
-
-  String _hrText([int width = _mobiPrintWidth]) => ''.padRight(width, '-');
 
   String _paymentLabel(PaymentMethod method) {
     switch (method) {
@@ -603,17 +430,10 @@ class ThermalPrinterService {
         await _printSunmi(bytes);
         break;
       case PrinterConnectionType.mobiPrintIntegrated:
-        // Ce transport ne comprend pas l'ESC/POS : les écrans appelants
-        // doivent utiliser printSaleReceipt/printClientCard/etc. (qui
-        // basculent vers _printMobiPrintText), jamais buildXxx+printBytes.
-        throw const PrinterException(
-          "Erreur interne : ce type d'imprimante utilise un canal texte dédié, pas printBytes.",
-        );
+        await _printMobiPrint(bytes);
+        break;
     }
   }
-
-  bool get _isMobiPrint =>
-      !kIsWeb && _settingsRepo.printer.connectionType == PrinterConnectionType.mobiPrintIntegrated;
 
   /// Sonde si le pilote imprimante intégré (voir [MobiPrintChannel]) est
   /// disponible sur ce terminal — utilisé pour la détection automatique
@@ -624,7 +444,7 @@ class ThermalPrinterService {
     return MobiPrintChannel.isAvailable();
   }
 
-  Future<void> _printMobiPrintText(String text) async {
+  Future<void> _printMobiPrint(List<int> bytes) async {
     if (kIsWeb) {
       throw const PrinterException(
         "Impression non disponible sur le web : le navigateur ne peut pas parler au pilote "
@@ -637,7 +457,7 @@ class ThermalPrinterService {
       );
     }
     try {
-      await MobiPrintChannel.printText(text);
+      await MobiPrintChannel.printBytes(bytes);
     } on PlatformException catch (e) {
       throw PrinterException("Impression sur l'imprimante intégrée impossible : ${e.message}");
     }

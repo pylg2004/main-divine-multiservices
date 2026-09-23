@@ -92,14 +92,14 @@ enum PrinterConnectionType {
   /// spécifiquement — pas d'adresse à configurer, l'app parle directement
   /// au SDK Sunmi (voir ThermalPrinterService.printBytes).
   sunmiIntegrated,
-  /// Imprimante intégrée de terminaux Android bas de gamme sans SDK ni
-  /// service AIDL (constaté sur MobiWire MobiPrint 3+ / "Mobilot MP3+") :
-  /// le pilote noyau du terminal accepte un fichier de commande texte
-  /// déposé sur le disque puis un signal écrit dans /proc/printer — pas
-  /// d'ESC/POS, texte brut uniquement (voir
-  /// ThermalPrinterService._printMobiPrintText et
-  /// android/.../MobiPrintChannel.kt). Détectable automatiquement (sonde
-  /// /proc/printer) — voir ThermalPrinterService.isMobiPrintAvailable.
+  /// Imprimante intégrée de terminaux Android bas de gamme sans SDK public
+  /// (constaté sur MobiWire MobiPrint 3+ / "Mobilot MP3+") : accepte les
+  /// mêmes octets ESC/POS que les autres transports, envoyés via le service
+  /// système propriétaire du fabricant (interface AIDL reconstruite par
+  /// rétro-ingénierie, aucun SDK n'étant documenté publiquement — voir
+  /// android/.../MobiPrintChannel.kt). Détectable automatiquement (le
+  /// service est résolu par son action Intent) — voir
+  /// ThermalPrinterService.isMobiPrintAvailable.
   mobiPrintIntegrated,
 }
 

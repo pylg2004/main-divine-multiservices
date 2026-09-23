@@ -22,6 +22,13 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
+    // Requis pour compiler android/app/src/main/aidl/.../PrintIOInterface.aidl
+    // (interface AIDL reconstruite du vrai service imprimante MobiWire, voir
+    // MobiPrintChannel.kt) — AGP n'active plus l'AIDL implicitement.
+    buildFeatures {
+        aidl = true
+    }
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.maindivine.main_divine_multiservices"
